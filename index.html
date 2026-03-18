@@ -17,6 +17,11 @@
         <h2>Inputs</h2>
 
         <label>
+          <span>Stock ticker</span>
+          <input id="stockTicker" type="text" value="AAPL" maxlength="12" autocomplete="off">
+        </label>
+
+        <label>
           <span>Current stock price</span>
           <input id="stockPrice" type="number" min="0" step="0.01" value="100">
         </label>
@@ -124,6 +129,7 @@
             <li>Cash-secured put earns premium while waiting to buy lower, but you may be assigned if the stock falls.</li>
             <li>Margin carry keeps or increases stock exposure, but interest cost means the stock must rise enough to cover financing.</li>
             <li>Annualized option yield uses 252 trading days, so a 5-day option means 5 market days, not 7 calendar days.</li>
+            <li>Inputs are now saved by ticker symbol, so each stock can keep its own assumptions in this browser.</li>
           </ul>
           <p class="disclaimer">
             This is an educational calculator, not investment advice. It does not model taxes, early assignment,
