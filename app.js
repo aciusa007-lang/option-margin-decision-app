@@ -1,4 +1,9 @@
 const form = document.getElementById("calculator-form");
+const stockList = document.getElementById("stockList");
+const addTickerButton = document.getElementById("addTickerButton");
+const fetchPriceButton = document.getElementById("fetchPriceButton");
+const priceStatus = document.getElementById("priceStatus");
+const activeTickerLabel = document.getElementById("activeTickerLabel");
 
 const fields = {
   stockTicker: document.getElementById("stockTicker"),
@@ -45,8 +50,12 @@ const cards = {
 };
 
 const TRADING_DAYS_PER_YEAR = 252;
-const STORAGE_KEY = "option-margin-decision-inputs";
-const LAST_TICKER_KEY = "option-margin-decision-last-ticker";
+const STORAGE_KEY = "option-margin-decision-inputs-v2";
+const LAST_TICKER_KEY = "option-margin-decision-last-ticker-v2";
+const GLOBAL_SETTINGS_KEY = "option-margin-decision-global-v1";
+const FALLBACK_TICKER = "AAPL";
+const GLOBAL_FIELD_KEYS = ["marginAmount", "marginRate", "marginShares"];
+const FINNHUB_API_KEY = "d1kvekhr01qt8foqinm0d1kvekhr01qt8foqinmg";
 
 const defaultValues = Object.fromEntries(
   Object.entries(fields).map(([key, field]) => [key, field.value])
@@ -96,29 +105,134 @@ function setStorageState(state) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+function getGlobalSettings() {
+  try {
+    return JSON.parse(window.localStorage.getItem(GLOBAL_SETTINGS_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function setGlobalSettings(settings) {
+  window.localStorage.setItem(GLOBAL_SETTINGS_KEY, JSON.stringify(settings));
+}
+
 function currentTicker() {
-  return normalizeTicker(fields.stockTicker.value) || "DEFAULT";
+  return normalizeTicker(fields.stockTicker.value);
+}
+
+function listTickers() {
+  return Object.keys(getStorageState()).sort((left, right) => left.localeCompare(right));
+}
+
+function updateActiveTickerLabel() {
+  activeTickerLabel.textContent = currentTicker() || "No stock selected";
+}
+
+function setPriceStatus(message, isError = false) {
+  priceStatus.textContent = message;
+  priceStatus.style.color = isError ? "var(--warn)" : "";
+}
+
+function ensureTickerProfile(ticker) {
+  const normalizedTicker = normalizeTicker(ticker) || FALLBACK_TICKER;
+  const state = getStorageState();
+  if (!state[normalizedTicker]) {
+    state[normalizedTicker] = { ...defaultValues, stockTicker: normalizedTicker };
+    setStorageState(state);
+  }
+  return normalizedTicker;
+}
+
+function renderStockList() {
+  const tickers = listTickers();
+  const activeTicker = currentTicker();
+
+  stockList.innerHTML = "";
+
+  tickers.forEach((ticker) => {
+    const item = document.createElement("li");
+    item.className = `stock-item${ticker === activeTicker ? " is-active" : ""}`;
+
+    const selectButton = document.createElement("button");
+    selectButton.type = "button";
+    selectButton.className = "stock-select";
+    selectButton.textContent = ticker;
+    selectButton.addEventListener("click", () => {
+      restoreInputs(ticker);
+      calculate();
+      saveInputs();
+    });
+
+    item.append(selectButton);
+
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "stock-remove";
+    removeButton.setAttribute("aria-label", `Remove ${ticker}`);
+    removeButton.title = `Remove ${ticker}`;
+    removeButton.textContent = "x";
+    removeButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      removeTicker(ticker);
+    });
+    item.append(removeButton);
+
+    stockList.append(item);
+  });
 }
 
 function saveInputs() {
   const ticker = currentTicker();
+  if (!ticker) {
+    updateActiveTickerLabel();
+    renderStockList();
+    return;
+  }
+
   fields.stockTicker.value = ticker;
 
   const state = getStorageState();
   const snapshot = {};
   Object.entries(fields).forEach(([key, field]) => {
-    snapshot[key] = field.value;
+    if (!GLOBAL_FIELD_KEYS.includes(key)) {
+      snapshot[key] = field.value;
+    }
+  });
+
+  const globalSettings = {};
+  GLOBAL_FIELD_KEYS.forEach((key) => {
+    globalSettings[key] = fields[key].value;
   });
 
   state[ticker] = snapshot;
   setStorageState(state);
+  setGlobalSettings(globalSettings);
   window.localStorage.setItem(LAST_TICKER_KEY, ticker);
+  updateActiveTickerLabel();
+  renderStockList();
 }
 
 function restoreInputs(ticker) {
-  const normalizedTicker = normalizeTicker(ticker) || "DEFAULT";
+  const normalizedTicker = normalizeTicker(ticker);
   const state = getStorageState();
-  const snapshot = state[normalizedTicker] || { ...defaultValues, stockTicker: normalizedTicker };
+  const globalSettings = getGlobalSettings();
+
+  if (!normalizedTicker || !state[normalizedTicker]) {
+    Object.entries(fields).forEach(([key, field]) => {
+      field.value = key === "stockTicker" ? "" : defaultValues[key];
+    });
+    GLOBAL_FIELD_KEYS.forEach((key) => {
+      if (globalSettings[key] !== undefined) {
+        fields[key].value = globalSettings[key];
+      }
+    });
+    updateActiveTickerLabel();
+    renderStockList();
+    return;
+  }
+  const snapshot = state[normalizedTicker];
 
   Object.entries(fields).forEach(([key, field]) => {
     if (Object.prototype.hasOwnProperty.call(snapshot, key)) {
@@ -126,7 +240,14 @@ function restoreInputs(ticker) {
     }
   });
 
+  GLOBAL_FIELD_KEYS.forEach((key) => {
+    fields[key].value =
+      globalSettings[key] !== undefined ? globalSettings[key] : defaultValues[key];
+  });
+
   fields.stockTicker.value = normalizedTicker;
+  updateActiveTickerLabel();
+  renderStockList();
 }
 
 function switchTickerProfile() {
@@ -135,13 +256,54 @@ function switchTickerProfile() {
   calculate();
 }
 
-function initializeTickerProfile() {
-  const lastTicker = normalizeTicker(window.localStorage.getItem(LAST_TICKER_KEY));
-  if (lastTicker) {
-    restoreInputs(lastTicker);
-  } else {
-    fields.stockTicker.value = normalizeTicker(fields.stockTicker.value) || "AAPL";
+function addTicker() {
+  const ticker = normalizeTicker(fields.stockTicker.value);
+  if (!ticker) {
+    fields.stockTicker.value = currentTicker() || "";
+    return;
   }
+
+  ensureTickerProfile(ticker);
+  restoreInputs(ticker);
+  calculate();
+  saveInputs();
+}
+
+function removeTicker(tickerToRemove) {
+  const normalizedTicker = normalizeTicker(tickerToRemove);
+  const state = getStorageState();
+  const activeTicker = currentTicker();
+
+  delete state[normalizedTicker];
+
+  setStorageState(state);
+
+  const remainingTickers = Object.keys(state).sort((left, right) => left.localeCompare(right));
+
+  const nextTicker =
+    activeTicker === normalizedTicker
+      ? (remainingTickers[0] || "")
+      : activeTicker;
+
+  restoreInputs(nextTicker);
+  if (nextTicker) {
+    calculate();
+    saveInputs();
+  }
+}
+
+function initializeTickerProfile() {
+  const tickers = listTickers();
+  const lastTicker = normalizeTicker(window.localStorage.getItem(LAST_TICKER_KEY));
+
+  if (tickers.length === 0) {
+    ensureTickerProfile(FALLBACK_TICKER);
+    window.localStorage.setItem(LAST_TICKER_KEY, FALLBACK_TICKER);
+    restoreInputs(FALLBACK_TICKER);
+    return;
+  }
+
+  restoreInputs(lastTicker && tickers.includes(lastTicker) ? lastTicker : tickers[0]);
 }
 
 function calculate() {
@@ -270,15 +432,60 @@ form.addEventListener("submit", (event) => {
   saveInputs();
 });
 
-Object.values(fields).forEach((field) => {
+Object.entries(fields).forEach(([key, field]) => {
+  if (key === "stockTicker") {
+    return;
+  }
+
   field.addEventListener("input", () => {
     calculate();
     saveInputs();
   });
 });
 
-fields.stockTicker.addEventListener("change", switchTickerProfile);
-fields.stockTicker.addEventListener("blur", switchTickerProfile);
+fields.stockTicker.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    addTicker();
+  }
+});
+
+addTickerButton.addEventListener("click", addTicker);
+
+fetchPriceButton.addEventListener("click", async () => {
+  const ticker = currentTicker() || normalizeTicker(fields.stockTicker.value);
+  if (!ticker) {
+    setPriceStatus("Enter a ticker first.", true);
+    return;
+  }
+
+  setPriceStatus(`Fetching price for ${ticker}...`);
+  fetchPriceButton.disabled = true;
+
+  try {
+    const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(ticker)}&token=${FINNHUB_API_KEY}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const price = Number.parseFloat(data.c);
+
+    if (!Number.isFinite(price) || price <= 0) {
+      throw new Error("No quote returned for this ticker.");
+    }
+
+    fields.stockPrice.value = price.toFixed(2);
+    calculate();
+    saveInputs();
+    setPriceStatus(`Current price loaded for ${ticker}: ${price.toFixed(2)}`);
+  } catch (error) {
+    setPriceStatus(error.message || "Unable to fetch stock price.", true);
+  } finally {
+    fetchPriceButton.disabled = false;
+  }
+});
 
 initializeTickerProfile();
 calculate();
