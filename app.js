@@ -1,6 +1,7 @@
 const form = document.getElementById("calculator-form");
 
 const fields = {
+  stockTicker: document.getElementById("stockTicker"),
   stockPrice: document.getElementById("stockPrice"),
   sharesOwned: document.getElementById("sharesOwned"),
   expectedPrice: document.getElementById("expectedPrice"),
@@ -45,6 +46,11 @@ const cards = {
 
 const TRADING_DAYS_PER_YEAR = 252;
 const STORAGE_KEY = "option-margin-decision-inputs";
+const LAST_TICKER_KEY = "option-margin-decision-last-ticker";
+
+const defaultValues = Object.fromEntries(
+  Object.entries(fields).map(([key, field]) => [key, field.value])
+);
 
 function readNumber(input) {
   return Number.parseFloat(input.value) || 0;
@@ -74,29 +80,67 @@ function formatPercent(value) {
   return `${value.toFixed(2)}%`;
 }
 
+function normalizeTicker(value) {
+  return (value || "").trim().toUpperCase();
+}
+
+function getStorageState() {
+  try {
+    return JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function setStorageState(state) {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function currentTicker() {
+  return normalizeTicker(fields.stockTicker.value) || "DEFAULT";
+}
+
 function saveInputs() {
+  const ticker = currentTicker();
+  fields.stockTicker.value = ticker;
+
+  const state = getStorageState();
   const snapshot = {};
   Object.entries(fields).forEach(([key, field]) => {
     snapshot[key] = field.value;
   });
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+
+  state[ticker] = snapshot;
+  setStorageState(state);
+  window.localStorage.setItem(LAST_TICKER_KEY, ticker);
 }
 
-function restoreInputs() {
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    return;
-  }
+function restoreInputs(ticker) {
+  const normalizedTicker = normalizeTicker(ticker) || "DEFAULT";
+  const state = getStorageState();
+  const snapshot = state[normalizedTicker] || { ...defaultValues, stockTicker: normalizedTicker };
 
-  try {
-    const snapshot = JSON.parse(raw);
-    Object.entries(fields).forEach(([key, field]) => {
-      if (Object.prototype.hasOwnProperty.call(snapshot, key)) {
-        field.value = snapshot[key];
-      }
-    });
-  } catch {
-    window.localStorage.removeItem(STORAGE_KEY);
+  Object.entries(fields).forEach(([key, field]) => {
+    if (Object.prototype.hasOwnProperty.call(snapshot, key)) {
+      field.value = snapshot[key];
+    }
+  });
+
+  fields.stockTicker.value = normalizedTicker;
+}
+
+function switchTickerProfile() {
+  const ticker = currentTicker();
+  restoreInputs(ticker);
+  calculate();
+}
+
+function initializeTickerProfile() {
+  const lastTicker = normalizeTicker(window.localStorage.getItem(LAST_TICKER_KEY));
+  if (lastTicker) {
+    restoreInputs(lastTicker);
+  } else {
+    fields.stockTicker.value = normalizeTicker(fields.stockTicker.value) || "AAPL";
   }
 }
 
@@ -233,5 +277,8 @@ Object.values(fields).forEach((field) => {
   });
 });
 
-restoreInputs();
+fields.stockTicker.addEventListener("change", switchTickerProfile);
+fields.stockTicker.addEventListener("blur", switchTickerProfile);
+
+initializeTickerProfile();
 calculate();
