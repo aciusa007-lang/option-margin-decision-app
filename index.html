@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Option vs Margin Decision App</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <section class="hero">
+      <p class="eyebrow">Strategy Comparison</p>
+      <h1>Covered Call, Cash-Secured Put, or Margin Carry</h1>
+      <p class="lede">
+        Compare option income against margin cost and stock upside so you can see which approach
+        makes more financial sense under your assumptions.
+      </p>
+    </section>
+
+    <section class="panel grid">
+      <form id="calculator-form" class="inputs" novalidate>
+        <h2>Inputs</h2>
+
+        <label>
+          <span>Current stock price</span>
+          <input id="stockPrice" type="number" min="0" step="0.01" value="100">
+        </label>
+
+        <label>
+          <span>Shares owned</span>
+          <input id="sharesOwned" type="number" min="100" step="100" value="10000">
+        </label>
+
+        <label>
+          <span>Expected stock price at expiration</span>
+          <input id="expectedPrice" type="number" min="0" step="0.01" value="108">
+        </label>
+
+        <label>
+          <span>Trading days to expiration</span>
+          <input id="daysToExpiration" type="number" min="1" step="1" value="30">
+        </label>
+
+        <label>
+          <span>Covered call strike</span>
+          <input id="callStrike" type="number" min="0" step="0.01" value="110">
+        </label>
+
+        <label>
+          <span>Covered call premium per share</span>
+          <input id="callPremium" type="number" min="0" step="0.01" value="1">
+        </label>
+
+        <label>
+          <span>Cash-secured put strike</span>
+          <input id="putStrike" type="number" min="0" step="0.01" value="95">
+        </label>
+
+        <label>
+          <span>Put contracts sold</span>
+          <input id="putContracts" type="number" min="0" step="1" value="100">
+        </label>
+
+        <label>
+          <span>Cash-secured put premium per share</span>
+          <input id="putPremium" type="number" min="0" step="0.01" value="1.2">
+        </label>
+
+        <label>
+          <span>Margin amount used</span>
+          <input id="marginAmount" type="number" min="0" step="0.01" value="1000000">
+        </label>
+
+        <label>
+          <span>Annual margin interest rate (%)</span>
+          <input id="marginRate" type="number" min="0" step="0.01" value="8">
+        </label>
+
+        <label>
+          <span>Extra shares bought with margin</span>
+          <input id="marginShares" type="number" min="0" step="1" value="10000">
+        </label>
+
+        <button type="submit">Compare Strategies</button>
+      </form>
+
+      <section class="results">
+        <div class="summary-card" id="bestChoice">
+          <p class="summary-label">Best projected choice</p>
+          <h2 id="bestChoiceTitle">Enter assumptions to compare</h2>
+          <p id="bestChoiceReason" class="muted">
+            The app will rank strategies by projected profit under your expected expiration price.
+          </p>
+        </div>
+
+        <div class="strategy-grid">
+          <article class="strategy-card" id="coveredCallCard">
+            <h3>Covered Call</h3>
+            <p class="metric"><span>Option premium income</span><strong id="coveredCallPremiumIncome">$0</strong></p>
+            <p class="metric"><span>Total strategy P/L</span><strong id="coveredCallProfit">$0</strong></p>
+            <p class="metric"><span>Annualized yield from premium</span><strong id="coveredCallYield">0%</strong></p>
+            <p class="metric"><span>Breakeven</span><strong id="coveredCallBreakeven">$0</strong></p>
+            <p class="metric"><span>Upside cap</span><strong id="coveredCallCap">$0</strong></p>
+          </article>
+
+          <article class="strategy-card" id="cashPutCard">
+            <h3>Cash-Secured Put</h3>
+            <p class="metric"><span>Option premium income</span><strong id="cashPutPremiumIncome">$0</strong></p>
+            <p class="metric"><span>Total strategy P/L</span><strong id="cashPutProfit">$0</strong></p>
+            <p class="metric"><span>Annualized yield from premium</span><strong id="cashPutYield">0%</strong></p>
+            <p class="metric"><span>Breakeven</span><strong id="cashPutBreakeven">$0</strong></p>
+            <p class="metric"><span>Assignment risk below</span><strong id="cashPutAssignment">$0</strong></p>
+            <p class="metric"><span>Cash needed if assigned</span><strong id="cashPutCashNeeded">$0</strong></p>
+            <p class="metric"><span>Net cash needed after premium</span><strong id="cashPutNetCashNeeded">$0</strong></p>
+          </article>
+
+          <article class="strategy-card" id="marginCard">
+            <h3>Margin Carry</h3>
+            <p class="metric"><span>Unrealized stock change</span><strong id="marginStockChange">$0</strong></p>
+            <p class="metric"><span>Financing cost</span><strong id="marginInterest">$0</strong></p>
+            <p class="metric"><span>Net carry result</span><strong id="marginProfit">$0</strong></p>
+            <p class="metric"><span>Stock gain needed to break even</span><strong id="marginBreakevenMove">$0</strong></p>
+            <p class="metric"><span>Leverage on extra shares</span><strong id="marginExposure">$0</strong></p>
+          </article>
+        </div>
+
+        <div class="notes">
+          <h3>How to read this</h3>
+          <ul>
+            <li>Covered call keeps your current shares and adds premium, but caps upside above the call strike.</li>
+            <li>Cash-secured put earns premium while waiting to buy lower, but you may be assigned if the stock falls.</li>
+            <li>Margin carry keeps or increases stock exposure, but interest cost means the stock must rise enough to cover financing.</li>
+            <li>Annualized option yield uses 252 trading days, so a 5-day option means 5 market days, not 7 calendar days.</li>
+          </ul>
+          <p class="disclaimer">
+            This is an educational calculator, not investment advice. It does not model taxes, early assignment,
+            changing volatility, dividends, or broker-specific margin rules.
+          </p>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
