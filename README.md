@@ -24,3 +24,36 @@ This is a standalone browser calculator for comparing three ideas:
 - Cash-secured put uses the same number of option contracts as your current share count would support.
 - Margin carry assumes profit is based on the extra shares you buy with borrowed money and subtracts simple interest for the holding period.
 - The calculator is for scenario analysis only. It does not include taxes, dividends, changing option Greeks, maintenance margin, or forced liquidation risk.
+- To enable cross-device sync with Supabase, create the table and policies below in the Supabase SQL editor:
+
+```sql
+create table if not exists public.portfolio_state (
+  id text primary key,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.portfolio_state enable row level security;
+
+drop policy if exists "anon read portfolio_state" on public.portfolio_state;
+create policy "anon read portfolio_state"
+on public.portfolio_state
+for select
+to anon
+using (true);
+
+drop policy if exists "anon insert portfolio_state" on public.portfolio_state;
+create policy "anon insert portfolio_state"
+on public.portfolio_state
+for insert
+to anon
+with check (true);
+
+drop policy if exists "anon update portfolio_state" on public.portfolio_state;
+create policy "anon update portfolio_state"
+on public.portfolio_state
+for update
+to anon
+using (true)
+with check (true);
+```
