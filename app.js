@@ -3,6 +3,7 @@ const stockList = document.getElementById("stockList");
 const addTickerButton = document.getElementById("addTickerButton");
 const fetchPriceButton = document.getElementById("fetchPriceButton");
 const priceStatus = document.getElementById("priceStatus");
+const cloudStatus = document.getElementById("cloudStatus");
 const activeTickerLabel = document.getElementById("activeTickerLabel");
 
 const fields = {
@@ -56,6 +57,15 @@ const GLOBAL_SETTINGS_KEY = "option-margin-decision-global-v1";
 const FALLBACK_TICKER = "AAPL";
 const GLOBAL_FIELD_KEYS = ["marginAmount", "marginRate", "marginShares"];
 const FINNHUB_API_KEY = "d1kvekhr01qt8foqinm0d1kvekhr01qt8foqinmg";
+const SUPABASE_URL = "https://seczrlmqftcqsbzuhzvh.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_8KAo4fIYcX9rq1rXdWZZ5Q_Owwncvjx";
+const SUPABASE_TABLE = "portfolio_state";
+const SUPABASE_SYNC_ID = "main";
+const supabaseClient = window.supabase?.createClient
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+let syncTimer = null;
+let cloudLoaded = false;
 
 const defaultValues = Object.fromEntries(
   Object.entries(fields).map(([key, field]) => [key, field.value])
@@ -132,6 +142,108 @@ function updateActiveTickerLabel() {
 function setPriceStatus(message, isError = false) {
   priceStatus.textContent = message;
   priceStatus.style.color = isError ? "var(--warn)" : "";
+}
+
+function setCloudStatus(message, isError = false) {
+  cloudStatus.textContent = message;
+  cloudStatus.style.color = isError ? "var(--warn)" : "";
+}
+
+function buildCloudPayload() {
+  return {
+    profiles: getStorageState(),
+    global: getGlobalSettings(),
+    lastTicker: window.localStorage.getItem(LAST_TICKER_KEY) || ""
+  };
+}
+
+function applyCloudPayload(payload) {
+  if (!payload || typeof payload !== "object") {
+    return;
+  }
+
+  if (payload.profiles && typeof payload.profiles === "object") {
+    setStorageState(payload.profiles);
+  }
+
+  if (payload.global && typeof payload.global === "object") {
+    setGlobalSettings(payload.global);
+  }
+
+  if (typeof payload.lastTicker === "string") {
+    window.localStorage.setItem(LAST_TICKER_KEY, payload.lastTicker);
+  }
+}
+
+async function syncCloudState() {
+  if (!supabaseClient || !cloudLoaded) {
+    return;
+  }
+
+  setCloudStatus("Syncing to cloud...");
+
+  const { error } = await supabaseClient
+    .from(SUPABASE_TABLE)
+    .upsert(
+      {
+        id: SUPABASE_SYNC_ID,
+        data: buildCloudPayload(),
+        updated_at: new Date().toISOString()
+      },
+      { onConflict: "id" }
+    );
+
+  if (error) {
+    setCloudStatus(`Cloud sync error: ${error.message}`, true);
+    return;
+  }
+
+  setCloudStatus("Cloud sync complete.");
+}
+
+function queueCloudSync() {
+  if (!supabaseClient) {
+    setCloudStatus("Supabase client not loaded.", true);
+    return;
+  }
+
+  window.clearTimeout(syncTimer);
+  syncTimer = window.setTimeout(() => {
+    syncCloudState();
+  }, 500);
+}
+
+async function loadCloudState() {
+  if (!supabaseClient) {
+    setCloudStatus("Supabase client not loaded.", true);
+    return;
+  }
+
+  setCloudStatus("Loading cloud data...");
+
+  const { data, error } = await supabaseClient
+    .from(SUPABASE_TABLE)
+    .select("data")
+    .eq("id", SUPABASE_SYNC_ID)
+    .maybeSingle();
+
+  if (error) {
+    setCloudStatus(`Cloud load error: ${error.message}`, true);
+    cloudLoaded = true;
+    return;
+  }
+
+  if (data?.data) {
+    applyCloudPayload(data.data);
+    initializeTickerProfile();
+    calculate();
+    setCloudStatus("Cloud data loaded.");
+  } else {
+    setCloudStatus("No cloud data yet. Saving current data...");
+  }
+
+  cloudLoaded = true;
+  queueCloudSync();
 }
 
 function ensureTickerProfile(ticker) {
@@ -212,6 +324,7 @@ function saveInputs() {
   window.localStorage.setItem(LAST_TICKER_KEY, ticker);
   updateActiveTickerLabel();
   renderStockList();
+  queueCloudSync();
 }
 
 function restoreInputs(ticker) {
@@ -489,3 +602,4 @@ fetchPriceButton.addEventListener("click", async () => {
 
 initializeTickerProfile();
 calculate();
+loadCloudState();
