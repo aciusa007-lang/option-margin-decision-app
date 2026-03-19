@@ -10,6 +10,28 @@
   <main class="app-shell">
     <section class="hero">
       <h1>Covered Call, Cash-Secured Put, or Margin Carry</h1>
+      <div class="auth-toggle-wrap">
+        <button id="authToggleButton" type="button" class="auth-toggle-button">Login</button>
+        <div id="authPanel" class="auth-card auth-card-inline is-collapsed">
+          <div class="auth-title-row">
+            <h2>Login</h2>
+            <p id="authStatus" class="status-text muted">Not signed in. Local browser data only.</p>
+          </div>
+          <label>
+            <span>Email</span>
+            <input id="authEmail" type="email" autocomplete="username" placeholder="you@example.com">
+          </label>
+          <label>
+            <span>Password</span>
+            <input id="authPassword" type="password" autocomplete="current-password" placeholder="Password">
+          </label>
+          <div class="auth-actions">
+            <button id="signInButton" type="button">Sign In</button>
+            <button id="signUpButton" type="button">Sign Up</button>
+            <button id="signOutButton" type="button" class="secondary-button">Sign Out</button>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section class="panel grid">
