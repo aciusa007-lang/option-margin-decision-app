@@ -111,7 +111,7 @@ function parseCboeCsv(csv, startDate){ const minTime = new Date(`${startDate}T00
 function getCachedSeries(cacheKey){ const cache = getMarketCache(); const entry = cache[cacheKey]; if (!entry || !Array.isArray(entry.series) || !entry.savedAt) return null; if (Date.now() - entry.savedAt > 12 * 60 * 60 * 1000) return null; return entry.series; }
 function setCachedSeries(cacheKey, series){ const cache = getMarketCache(); cache[cacheKey] = { savedAt: Date.now(), series }; setMarketCache(cache); }
 async function fetchTwelveSeries(symbol, startDate){ const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(symbol)}&interval=1day&start_date=${encodeURIComponent(startDate)}&order=asc&outputsize=5000&apikey=${TWELVE_DATA_API_KEY}`; const response = await fetch(url); if (!response.ok) throw new Error(`HTTP ${response.status}`); const data = await response.json(); if (data.status === "error") throw new Error(data.message || `Unable to load ${symbol}`); return parseTimeSeriesResponse(data); }
-async function fetchCboeVixSeries(startDate){ const response = await fetch("https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv"); if (!response.ok) throw new Error(`HTTP ${response.status}`); const csv = await response.text(); const series = parseCboeCsv(csv, startDate); if (!series.length) throw new Error("Unable to load VIX history."); return series; }
+async function fetchCboeVixSeries(startDate){ const response = await fetch("data/vix-history.csv"); if (!response.ok) throw new Error(`HTTP ${response.status}`); const csv = await response.text(); const series = parseCboeCsv(csv, startDate); if (!series.length) throw new Error("Unable to load VIX history."); return series; }
 function periodStartDate(periodKey){ const now = new Date(); const start = new Date(now); start.setFullYear(now.getFullYear() - (periodKey === "2y" ? 2 : 1)); return start.toISOString().slice(0, 10); }
 async function loadMarketHistory(){
   const requestId = ++marketRequestId;
@@ -168,3 +168,4 @@ initializeTickerProfile();
 calculate();
 loadCloudState();
 loadMarketHistory();
+
