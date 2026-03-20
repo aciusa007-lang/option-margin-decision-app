@@ -5,14 +5,6 @@ const fetchPriceButton = document.getElementById("fetchPriceButton");
 const priceStatus = document.getElementById("priceStatus");
 const cloudStatus = document.getElementById("cloudStatus");
 const activeTickerLabel = document.getElementById("activeTickerLabel");
-const authToggleButton = document.getElementById("authToggleButton");
-const authPanel = document.getElementById("authPanel");
-const authEmail = document.getElementById("authEmail");
-const authPassword = document.getElementById("authPassword");
-const signInButton = document.getElementById("signInButton");
-const signUpButton = document.getElementById("signUpButton");
-const signOutButton = document.getElementById("signOutButton");
-const authStatus = document.getElementById("authStatus");
 
 const fields = {
   stockTicker: document.getElementById("stockTicker"),
@@ -68,13 +60,12 @@ const FINNHUB_API_KEY = "d1kvekhr01qt8foqinm0d1kvekhr01qt8foqinmg";
 const SUPABASE_URL = "https://seczrlmqftcqsbzuhzvh.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_8KAo4fIYcX9rq1rXdWZZ5Q_Owwncvjx";
 const SUPABASE_TABLE = "portfolio_state";
-const SUPABASE_SYNC_ID = "main";
+const SUPABASE_SYNC_ID = "leeclub-private-site";
 const supabaseClient = window.supabase?.createClient
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   : null;
 let syncTimer = null;
 let cloudLoaded = false;
-let currentUser = null;
 
 const defaultValues = Object.fromEntries(
   Object.entries(fields).map(([key, field]) => [key, field.value])
@@ -158,29 +149,6 @@ function setCloudStatus(message, isError = false) {
   cloudStatus.style.color = isError ? "var(--warn)" : "";
 }
 
-function setAuthStatus(message, isError = false) {
-  authStatus.textContent = message;
-  authStatus.style.color = isError ? "var(--warn)" : "";
-}
-
-function updateAuthControls() {
-  const signedIn = Boolean(currentUser);
-  authEmail.disabled = signedIn;
-  authPassword.disabled = signedIn;
-  signInButton.disabled = signedIn;
-  signUpButton.disabled = signedIn;
-  signOutButton.disabled = !signedIn;
-  authToggleButton.textContent = signedIn ? "Account" : "Login";
-}
-
-function toggleAuthPanel(forceOpen) {
-  const shouldOpen = typeof forceOpen === "boolean"
-    ? forceOpen
-    : authPanel.classList.contains("is-collapsed");
-
-  authPanel.classList.toggle("is-collapsed", !shouldOpen);
-}
-
 function buildCloudPayload() {
   return {
     profiles: getStorageState(),
@@ -208,7 +176,7 @@ function applyCloudPayload(payload) {
 }
 
 async function syncCloudState() {
-  if (!supabaseClient || !cloudLoaded || !currentUser) {
+  if (!supabaseClient || !cloudLoaded) {
     return;
   }
 
@@ -218,7 +186,7 @@ async function syncCloudState() {
     .from(SUPABASE_TABLE)
     .upsert(
       {
-        id: currentUser.id,
+        id: SUPABASE_SYNC_ID,
         data: buildCloudPayload(),
         updated_at: new Date().toISOString()
       },
@@ -239,11 +207,6 @@ function queueCloudSync() {
     return;
   }
 
-  if (!currentUser) {
-    setCloudStatus("Sign in to sync across devices.");
-    return;
-  }
-
   window.clearTimeout(syncTimer);
   syncTimer = window.setTimeout(() => {
     syncCloudState();
@@ -256,18 +219,12 @@ async function loadCloudState() {
     return;
   }
 
-  if (!currentUser) {
-    cloudLoaded = false;
-    setCloudStatus("Sign in to load cloud data.");
-    return;
-  }
-
   setCloudStatus("Loading cloud data...");
 
   const { data, error } = await supabaseClient
     .from(SUPABASE_TABLE)
     .select("data")
-    .eq("id", currentUser.id)
+    .eq("id", SUPABASE_SYNC_ID)
     .maybeSingle();
 
   if (error) {
@@ -287,78 +244,6 @@ async function loadCloudState() {
 
   cloudLoaded = true;
   queueCloudSync();
-}
-
-async function handleAuthSession(session) {
-  currentUser = session?.user ?? null;
-  cloudLoaded = false;
-  updateAuthControls();
-
-  if (!currentUser) {
-    setAuthStatus("Not signed in. Local browser data only.");
-    setCloudStatus("Sign in to sync across devices.");
-    return;
-  }
-
-  authEmail.value = currentUser.email || "";
-  authPassword.value = "";
-  setAuthStatus(`Signed in as ${currentUser.email}`);
-  toggleAuthPanel(false);
-  await loadCloudState();
-}
-
-async function signIn() {
-  if (!supabaseClient) {
-    setAuthStatus("Supabase client not loaded.", true);
-    return;
-  }
-
-  const email = authEmail.value.trim();
-  const password = authPassword.value;
-  if (!email || !password) {
-    setAuthStatus("Enter your email and password.", true);
-    return;
-  }
-
-  setAuthStatus("Signing in...");
-  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-  if (error) {
-    setAuthStatus(error.message, true);
-  }
-}
-
-async function signUp() {
-  if (!supabaseClient) {
-    setAuthStatus("Supabase client not loaded.", true);
-    return;
-  }
-
-  const email = authEmail.value.trim();
-  const password = authPassword.value;
-  if (!email || !password) {
-    setAuthStatus("Enter your email and password.", true);
-    return;
-  }
-
-  setAuthStatus("Creating account...");
-  const { error } = await supabaseClient.auth.signUp({ email, password });
-  if (error) {
-    setAuthStatus(error.message, true);
-    return;
-  }
-
-  setAuthStatus("Account created. If email confirmation is enabled, confirm your email before signing in.");
-}
-
-async function signOut() {
-  if (!supabaseClient) {
-    return;
-  }
-
-  const { error } = await supabaseClient.auth.signOut();
-  if (error) {
-    setAuthStatus(error.message, true);
-  }
 }
 
 function ensureTickerProfile(ticker) {
@@ -679,12 +564,6 @@ fields.stockTicker.addEventListener("keydown", (event) => {
 });
 
 addTickerButton.addEventListener("click", addTicker);
-authToggleButton.addEventListener("click", () => {
-  toggleAuthPanel();
-});
-signInButton.addEventListener("click", signIn);
-signUpButton.addEventListener("click", signUp);
-signOutButton.addEventListener("click", signOut);
 
 fetchPriceButton.addEventListener("click", async () => {
   const ticker = currentTicker() || normalizeTicker(fields.stockTicker.value);
@@ -724,18 +603,5 @@ fetchPriceButton.addEventListener("click", async () => {
 initializeTickerProfile();
 calculate();
 
-if (supabaseClient) {
-  supabaseClient.auth.getSession().then(({ data, error }) => {
-    if (error) {
-      setAuthStatus(error.message, true);
-      return;
-    }
-    handleAuthSession(data.session);
-  });
+loadCloudState();
 
-  supabaseClient.auth.onAuthStateChange((_event, session) => {
-    handleAuthSession(session);
-  });
-} else {
-  setAuthStatus("Supabase client not loaded.", true);
-}
