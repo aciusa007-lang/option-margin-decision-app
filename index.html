@@ -11,6 +11,8 @@
       --ink: #182126;
       --muted: #5e6a70;
       --accent: #0f766e;
+      --accent-dark: #14532d;
+      --accent-soft: #d6efe9;
       --line: #d8d1c3;
       --shadow: 0 24px 60px rgba(24, 33, 38, 0.08);
     }
@@ -22,8 +24,6 @@
     body {
       margin: 0;
       min-height: 100vh;
-      display: grid;
-      place-items: center;
       padding: 20px;
       font-family: Georgia, "Times New Roman", serif;
       color: var(--ink);
@@ -33,43 +33,186 @@
     }
 
     .portal {
-      width: min(100%, 720px);
+      width: min(100%, 1040px);
+      margin: 28px auto;
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 28px;
       box-shadow: var(--shadow);
-      padding: 34px 28px;
-      text-align: center;
+      padding: 34px 28px 28px;
     }
 
     h1 {
       margin: 0 0 10px;
-      font: 700 2rem/1.08 "Trebuchet MS", "Segoe UI", sans-serif;
+      font: 700 clamp(2rem, 4vw, 3.4rem)/1.03 "Trebuchet MS", "Segoe UI", sans-serif;
     }
 
-    p {
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.9fr);
+      gap: 18px;
+      align-items: stretch;
+      margin-bottom: 18px;
+    }
+
+    .hero-copy p {
       margin: 0 0 22px;
       color: var(--muted);
       font-size: 1rem;
       line-height: 1.45;
     }
 
-    a {
+    .hero-card,
+    .tool-card {
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.58);
+    }
+
+    .hero-card {
+      padding: 22px 20px;
+      background: linear-gradient(135deg, rgba(214, 239, 233, 0.9), rgba(255, 253, 248, 0.96));
+    }
+
+    .hero-card h2,
+    .tools h2 {
+      margin: 0 0 8px;
+      font: 700 1.1rem/1.1 "Trebuchet MS", "Segoe UI", sans-serif;
+    }
+
+    .hero-card p,
+    .tool-card p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--accent);
+      font: 700 0.78rem/1 "Trebuchet MS", "Segoe UI", sans-serif;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .cta {
       display: inline-block;
       padding: 14px 24px;
       border-radius: 999px;
-      background: linear-gradient(135deg, #0f766e, #14532d);
+      background: linear-gradient(135deg, var(--accent), var(--accent-dark));
       color: #fff;
       font: 700 1rem/1 "Trebuchet MS", "Segoe UI", sans-serif;
       text-decoration: none;
+    }
+
+    .tools {
+      margin-top: 8px;
+    }
+
+    .tools p.section-copy {
+      margin: 0 0 12px;
+      color: var(--muted);
+    }
+
+    .tool-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .tool-card {
+      padding: 18px 16px;
+      min-height: 152px;
+      display: grid;
+      align-content: start;
+      gap: 10px;
+    }
+
+    .tool-card h3 {
+      margin: 0;
+      font: 700 1rem/1.15 "Trebuchet MS", "Segoe UI", sans-serif;
+    }
+
+    .tool-card.is-live {
+      background: rgba(214, 239, 233, 0.4);
+      border-color: rgba(15, 118, 110, 0.38);
+    }
+
+    .tag {
+      display: inline-block;
+      width: fit-content;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent-dark);
+      font: 700 0.72rem/1 "Trebuchet MS", "Segoe UI", sans-serif;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .tool-card .placeholder {
+      color: #8a7c69;
+      font-style: italic;
+    }
+
+    .tool-card .cta {
+      margin-top: auto;
+      justify-self: start;
+      padding: 11px 16px;
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 820px) {
+      .hero,
+      .tool-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .portal {
+        padding: 24px 18px 20px;
+      }
     }
   </style>
 </head>
 <body>
   <main class="portal">
-    <h1>Lee Club</h1>
-    <p>Private tools and pages for you and your family.</p>
-    <a href="/stockoption/">Stock Option Tool</a>
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Private Portal</p>
+        <h1>Lee Club</h1>
+        <p>Private tools and pages for you and your family. Start here and add more tools over time without changing the main address.</p>
+        <a class="cta" href="/stockoption/">Open Stock Option Tool</a>
+      </div>
+      <aside class="hero-card">
+        <h2>Current Setup</h2>
+        <p>The site is protected by Cloudflare Access before anyone can open the tools inside. After you pass the email code gate, this page becomes your entry point.</p>
+      </aside>
+    </section>
+
+    <section class="tools">
+      <h2>Tools</h2>
+      <p class="section-copy">One tool is live now. The other cards are placeholders for future pages.</p>
+      <div class="tool-grid">
+        <article class="tool-card is-live">
+          <span class="tag">Live</span>
+          <h3>Stock Option Tool</h3>
+          <p>Analyze covered calls, cash-secured puts, margin carry, stock-specific scenarios, and synced data.</p>
+          <a class="cta" href="/stockoption/">Enter Tool</a>
+        </article>
+
+        <article class="tool-card">
+          <span class="tag">Later</span>
+          <h3>Family Notes</h3>
+          <p class="placeholder">Reserved for a private notes or reminders page.</p>
+        </article>
+
+        <article class="tool-card">
+          <span class="tag">Later</span>
+          <h3>More Tools</h3>
+          <p class="placeholder">Reserved for future calculators or personal pages.</p>
+        </article>
+      </div>
+    </section>
   </main>
 </body>
 </html>
