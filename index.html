@@ -3,185 +3,73 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Option vs Margin Decision App</title>
-  <link rel="stylesheet" href="styles.css">
+  <title>Lee Club</title>
+  <style>
+    :root {
+      --bg: #f3efe5;
+      --panel: rgba(255, 253, 248, 0.92);
+      --ink: #182126;
+      --muted: #5e6a70;
+      --accent: #0f766e;
+      --line: #d8d1c3;
+      --shadow: 0 24px 60px rgba(24, 33, 38, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(15, 118, 110, 0.14), transparent 32%),
+        linear-gradient(180deg, #f6f2e9 0%, #eee6d7 100%);
+    }
+
+    .portal {
+      width: min(100%, 720px);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      padding: 34px 28px;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font: 700 2rem/1.08 "Trebuchet MS", "Segoe UI", sans-serif;
+    }
+
+    p {
+      margin: 0 0 22px;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.45;
+    }
+
+    a {
+      display: inline-block;
+      padding: 14px 24px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #0f766e, #14532d);
+      color: #fff;
+      font: 700 1rem/1 "Trebuchet MS", "Segoe UI", sans-serif;
+      text-decoration: none;
+    }
+  </style>
 </head>
 <body>
-  <main class="app-shell">
-    <section class="hero">
-      <h1>Covered Call, Cash-Secured Put, or Margin Carry</h1>
-      <div class="auth-toggle-wrap">
-        <button id="authToggleButton" type="button" class="auth-toggle-button">Login</button>
-        <div id="authPanel" class="auth-card auth-card-inline is-collapsed">
-          <div class="auth-title-row">
-            <h2>Login</h2>
-            <p id="authStatus" class="status-text muted">Not signed in. Local browser data only.</p>
-          </div>
-          <label>
-            <span>Email</span>
-            <input id="authEmail" type="email" autocomplete="username" placeholder="you@example.com">
-          </label>
-          <label>
-            <span>Password</span>
-            <input id="authPassword" type="password" autocomplete="current-password" placeholder="Password">
-          </label>
-          <div class="auth-actions">
-            <button id="signInButton" type="button">Sign In</button>
-            <button id="signUpButton" type="button">Sign Up</button>
-            <button id="signOutButton" type="button" class="secondary-button">Sign Out</button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="panel grid">
-      <aside class="stock-panel">
-        <div class="watchlist-card">
-          <div class="watchlist-head">
-            <h2>Stocks</h2>
-            <p class="muted">Click a saved stock to load its numbers.</p>
-          </div>
-
-          <div class="ticker-entry">
-            <input id="stockTicker" type="text" value="AAPL" maxlength="12" autocomplete="off" placeholder="Enter ticker">
-            <button id="addTickerButton" type="button">Add</button>
-          </div>
-
-          <div class="lookup-actions">
-            <button id="fetchPriceButton" type="button">Stock Price</button>
-            <p id="priceStatus" class="status-text muted">Click to fill current price from Finnhub.</p>
-            <p id="cloudStatus" class="status-text muted">Cloud sync not connected yet.</p>
-          </div>
-
-          <ul id="stockList" class="stock-list" aria-label="Saved stocks"></ul>
-        </div>
-      </aside>
-
-      <section class="main-column">
-        <form id="calculator-form" class="inputs" novalidate>
-          <h2>Inputs for <span id="activeTickerLabel">AAPL</span></h2>
-
-          <label>
-            <span>Current stock price</span>
-            <input id="stockPrice" type="number" min="0" step="0.01" value="100">
-          </label>
-
-          <label>
-            <span>Shares owned</span>
-            <input id="sharesOwned" type="number" min="100" step="100" value="10000">
-          </label>
-
-          <label>
-            <span>Expected stock price at expiration</span>
-            <input id="expectedPrice" type="number" min="0" step="0.01" value="108">
-          </label>
-
-          <label>
-            <span>Trading days to expiration</span>
-            <input id="daysToExpiration" type="number" min="1" step="1" value="30">
-          </label>
-
-          <label>
-            <span>Covered call strike</span>
-            <input id="callStrike" type="number" min="0" step="0.01" value="110">
-          </label>
-
-          <label>
-            <span>Covered call premium per share</span>
-            <input id="callPremium" type="number" min="0" step="0.01" value="1">
-          </label>
-
-          <label>
-            <span>Cash-secured put strike</span>
-            <input id="putStrike" type="number" min="0" step="0.01" value="95">
-          </label>
-
-          <label>
-            <span>Put contracts sold</span>
-            <input id="putContracts" type="number" min="0" step="1" value="100">
-          </label>
-
-          <label>
-            <span>Cash-secured put premium per share</span>
-            <input id="putPremium" type="number" min="0" step="0.01" value="1.2">
-          </label>
-
-          <label>
-            <span>Margin amount used</span>
-            <input id="marginAmount" type="number" min="0" step="0.01" value="1000000">
-          </label>
-
-          <label>
-            <span>Annual margin interest rate (%)</span>
-            <input id="marginRate" type="number" min="0" step="0.01" value="8">
-          </label>
-
-          <label>
-            <span>Extra shares bought with margin</span>
-            <input id="marginShares" type="number" min="0" step="1" value="10000">
-          </label>
-        </form>
-
-        <section class="results">
-        <div class="summary-card" id="bestChoice">
-          <p class="summary-label">Best projected choice</p>
-          <h2 id="bestChoiceTitle">Enter assumptions to compare</h2>
-          <p id="bestChoiceReason" class="muted">
-            The app will rank strategies by projected profit under your expected expiration price.
-          </p>
-        </div>
-
-        <div class="strategy-grid">
-          <article class="strategy-card" id="coveredCallCard">
-            <h3>Covered Call</h3>
-            <p class="metric"><span>Option premium income</span><strong id="coveredCallPremiumIncome">$0</strong></p>
-            <p class="metric"><span>Total strategy P/L</span><strong id="coveredCallProfit">$0</strong></p>
-            <p class="metric"><span>Annualized yield from premium</span><strong id="coveredCallYield">0%</strong></p>
-            <p class="metric"><span>Breakeven</span><strong id="coveredCallBreakeven">$0</strong></p>
-            <p class="metric"><span>Upside cap</span><strong id="coveredCallCap">$0</strong></p>
-          </article>
-
-          <article class="strategy-card" id="cashPutCard">
-            <h3>Cash-Secured Put</h3>
-            <p class="metric"><span>Option premium income</span><strong id="cashPutPremiumIncome">$0</strong></p>
-            <p class="metric"><span>Total strategy P/L</span><strong id="cashPutProfit">$0</strong></p>
-            <p class="metric"><span>Annualized yield from premium</span><strong id="cashPutYield">0%</strong></p>
-            <p class="metric"><span>Breakeven</span><strong id="cashPutBreakeven">$0</strong></p>
-            <p class="metric"><span>Assignment risk below</span><strong id="cashPutAssignment">$0</strong></p>
-            <p class="metric"><span>Cash needed if assigned</span><strong id="cashPutCashNeeded">$0</strong></p>
-            <p class="metric"><span>Net cash needed after premium</span><strong id="cashPutNetCashNeeded">$0</strong></p>
-          </article>
-
-          <article class="strategy-card" id="marginCard">
-            <h3>Margin Carry</h3>
-            <p class="metric"><span>Unrealized stock change</span><strong id="marginStockChange">$0</strong></p>
-            <p class="metric"><span>Financing cost</span><strong id="marginInterest">$0</strong></p>
-            <p class="metric"><span>Net carry result</span><strong id="marginProfit">$0</strong></p>
-            <p class="metric"><span>Stock gain needed to break even</span><strong id="marginBreakevenMove">$0</strong></p>
-            <p class="metric"><span>Leverage on extra shares</span><strong id="marginExposure">$0</strong></p>
-          </article>
-        </div>
-
-        <div class="notes">
-          <h3>How to read this</h3>
-          <ul>
-            <li>Covered call keeps your current shares and adds premium, but caps upside above the call strike.</li>
-            <li>Cash-secured put earns premium while waiting to buy lower, but you may be assigned if the stock falls.</li>
-            <li>Margin carry keeps or increases stock exposure, but interest cost means the stock must rise enough to cover financing.</li>
-            <li>Annualized option yield uses 252 trading days, so a 5-day option means 5 market days, not 7 calendar days.</li>
-            <li>Each ticker keeps its own saved assumptions in this browser, and the left stock list switches profiles instantly.</li>
-          </ul>
-          <p class="disclaimer">
-            This is an educational calculator, not investment advice. It does not model taxes, early assignment,
-            changing volatility, dividends, or broker-specific margin rules.
-          </p>
-        </div>
-        </section>
-      </section>
-    </section>
+  <main class="portal">
+    <h1>Lee Club</h1>
+    <p>Private tools and pages for you and your family.</p>
+    <a href="/stockoption/">Stock Option Tool</a>
   </main>
-
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js"></script>
 </body>
 </html>
