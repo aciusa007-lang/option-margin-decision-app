@@ -31,129 +31,6 @@ body {
 
 .hero {
   margin-bottom: 10px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 520px);
-  gap: 14px;
-  align-items: start;
-}
-
-.auth-toggle-wrap {
-  display: grid;
-  justify-items: end;
-  gap: 8px;
-}
-
-.auth-toggle-button {
-  margin-top: 0;
-  padding: 8px 16px;
-  font-size: 0.84rem;
-}
-
-.eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  font-size: 0.78rem;
-  color: var(--accent);
-  margin: 0 0 10px;
-}
-
-h1,
-h2,
-h3,
-button {
-  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
-}
-
-h1 {
-  font-size: clamp(1.4rem, 2vw, 2.2rem);
-  line-height: 1.08;
-  margin: 0 0 8px;
-  max-width: 900px;
-}
-
-.lede {
-  max-width: 760px;
-  font-size: 0.92rem;
-  line-height: 1.45;
-  color: var(--muted);
-  margin: 0;
-}
-
-.panel {
-  background: rgba(255, 253, 248, 0.86);
-  border: 1px solid rgba(216, 209, 195, 0.9);
-  border-radius: 28px;
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(8px);
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 12px;
-  padding: 12px;
-}
-
-.stock-panel,
-.main-column,
-.inputs,
-.results {
-  min-width: 0;
-}
-
-.stock-panel {
-  align-self: start;
-}
-
-.watchlist-card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: 12px;
-}
-
-.auth-card {
-  display: grid;
-  gap: 6px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: 12px;
-}
-
-.auth-card h2 {
-  margin: 0 0 2px;
-  font-size: 1rem;
-}
-
-.auth-card-inline {
-  margin-bottom: 0;
-  width: min(100%, 520px);
-}
-
-.auth-title-row {
-  display: grid;
-  gap: 4px;
-}
-
-.auth-title-row p {
-  margin: 0;
-}
-
-.auth-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 6px;
-}
-
-.auth-actions .secondary-button {
-  background: #f7f2e8;
-  color: var(--ink);
-  border: 1px solid var(--line);
-}
-
-.auth-card.is-collapsed {
-  display: none;
 }
 
 .watchlist-head h2 {
@@ -397,8 +274,8 @@ li {
 
 @media (max-width: 1024px) {
   .hero {
-    grid-template-columns: 1fr;
-  }
+  margin-bottom: 10px;
+}
 
   .grid {
     grid-template-columns: 1fr;
@@ -412,3 +289,4 @@ li {
     grid-template-columns: 1fr;
   }
 }
+
