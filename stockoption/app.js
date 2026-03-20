@@ -57,7 +57,7 @@ const TRADING_DAYS_PER_YEAR = 252;
 const STORAGE_KEY = "option-margin-decision-inputs-v2";
 const LAST_TICKER_KEY = "option-margin-decision-last-ticker-v2";
 const GLOBAL_SETTINGS_KEY = "option-margin-decision-global-v1";
-const MARKET_CACHE_KEY = "option-margin-market-cache-v1";
+const MARKET_CACHE_KEY = "option-margin-market-cache-v2";
 const FALLBACK_TICKER = "AAPL";
 const GLOBAL_FIELD_KEYS = ["marginAmount", "marginRate", "marginShares"];
 const FINNHUB_API_KEY = "d1kvekhr01qt8foqinm0d1kvekhr01qt8foqinmg";
@@ -107,14 +107,56 @@ function setPeriodButtons(){ period1yButton.classList.toggle("is-active", select
 function formatRangeLabel(series){ if (!series.length) return "-"; const first = series[0].close; const last = series[series.length - 1].close; const change = last - first; const pct = first !== 0 ? (change / first) * 100 : 0; const sign = change >= 0 ? "+" : ""; return `${formatCurrencyPrecise(last)} | ${sign}${change.toFixed(2)} (${sign}${pct.toFixed(2)}%)`; }
 function renderLineChart(svg, series, lineClass){ const width = 720, height = 220, left = 22, right = 10, top = 12, bottom = 18, innerWidth = width - left - right, innerHeight = height - top - bottom; svg.innerHTML = ""; if (!series.length) { svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" class="chart-empty">No data available</text>'; return; } const values = series.map((point)=>point.close); const min = Math.min(...values); const max = Math.max(...values); const span = max - min || 1; const guides = [0,0.5,1].map((ratio)=>{ const y = top + innerHeight * ratio; return `<line class="chart-guide" x1="${left}" y1="${y}" x2="${width - right}" y2="${y}" />`; }).join(""); const path = series.map((point, index)=>{ const x = left + (innerWidth * index) / Math.max(series.length - 1, 1); const y = top + ((max - point.close) / span) * innerHeight; return `${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`; }).join(" "); svg.innerHTML = `${guides}<line class="chart-axis" x1="${left}" y1="${height - bottom}" x2="${width - right}" y2="${height - bottom}" /><path class="${lineClass}" d="${path}" />`; }
 function parseTimeSeriesResponse(data){ if (!data || !Array.isArray(data.values)) return []; return data.values.map((entry)=>({ date: entry.datetime, close: Number.parseFloat(entry.close) })).filter((entry)=>Number.isFinite(entry.close)).sort((a,b)=>new Date(a.date) - new Date(b.date)); }
-function parseFinnhubSeries(data){ if (!data || data.s !== "ok" || !Array.isArray(data.c) || !Array.isArray(data.t)) return []; return data.c.map((close, index)=>({ date: new Date(data.t[index] * 1000).toISOString().slice(0, 10), close: Number.parseFloat(close) })).filter((entry)=>Number.isFinite(entry.close)); }
+function parseCboeCsv(csv, startDate){ const minTime = new Date(`${startDate}T00:00:00Z`).getTime(); return csv.split(/\r?\n/).slice(1).map((line)=>line.trim()).filter(Boolean).map((line)=>{ const parts = line.split(","); const date = parts[0]; const close = Number.parseFloat(parts[parts.length - 1]); const [month, day, year] = date.split("/"); return { date: `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`, close }; }).filter((entry)=>Number.isFinite(entry.close) && new Date(`${entry.date}T00:00:00Z`).getTime() >= minTime).sort((a,b)=>new Date(a.date) - new Date(b.date)); }
 function getCachedSeries(cacheKey){ const cache = getMarketCache(); const entry = cache[cacheKey]; if (!entry || !Array.isArray(entry.series) || !entry.savedAt) return null; if (Date.now() - entry.savedAt > 12 * 60 * 60 * 1000) return null; return entry.series; }
 function setCachedSeries(cacheKey, series){ const cache = getMarketCache(); cache[cacheKey] = { savedAt: Date.now(), series }; setMarketCache(cache); }
 async function fetchTwelveSeries(symbol, startDate){ const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(symbol)}&interval=1day&start_date=${encodeURIComponent(startDate)}&order=asc&outputsize=5000&apikey=${TWELVE_DATA_API_KEY}`; const response = await fetch(url); if (!response.ok) throw new Error(`HTTP ${response.status}`); const data = await response.json(); if (data.status === "error") throw new Error(data.message || `Unable to load ${symbol}`); return parseTimeSeriesResponse(data); }
-async function fetchFinnhubSeries(symbol, startDate){ const fromUnix = Math.floor(new Date(`${startDate}T00:00:00Z`).getTime() / 1000); const toUnix = Math.floor(Date.now() / 1000); const url = `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(symbol)}&resolution=D&from=${fromUnix}&to=${toUnix}&token=${FINNHUB_API_KEY}`; const response = await fetch(url); if (!response.ok) throw new Error(`HTTP ${response.status}`); const data = await response.json(); const series = parseFinnhubSeries(data); if (!series.length) throw new Error(`Unable to load ${symbol} history.`); return series; }
-async function fetchVixSeries(startDate){ return fetchTwelveSeries("VIX", startDate); }
+async function fetchCboeVixSeries(startDate){ const response = await fetch("https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv"); if (!response.ok) throw new Error(`HTTP ${response.status}`); const csv = await response.text(); const series = parseCboeCsv(csv, startDate); if (!series.length) throw new Error("Unable to load VIX history."); return series; }
 function periodStartDate(periodKey){ const now = new Date(); const start = new Date(now); start.setFullYear(now.getFullYear() - (periodKey === "2y" ? 2 : 1)); return start.toISOString().slice(0, 10); }
-async function loadMarketHistory(){ const requestId = ++marketRequestId; const startDate = periodStartDate(selectedPeriod); const qqqCacheKey = `QQQ-${selectedPeriod}`; const vixCacheKey = `VIX-${selectedPeriod}`; setPeriodButtons(); setMarketStatus(`Loading ${selectedPeriod === "2y" ? "2-year" : "1-year"} history...`); try { const cachedQqqSeries = getCachedSeries(qqqCacheKey); const cachedVixSeries = getCachedSeries(vixCacheKey); const [qqqSeries, vixSeries] = await Promise.all([cachedQqqSeries ? Promise.resolve(cachedQqqSeries) : fetchFinnhubSeries("QQQ", startDate), cachedVixSeries ? Promise.resolve(cachedVixSeries) : fetchVixSeries(startDate)]); if (!cachedQqqSeries) setCachedSeries(qqqCacheKey, qqqSeries); if (!cachedVixSeries) setCachedSeries(vixCacheKey, vixSeries); if (requestId !== marketRequestId) return; renderLineChart(qqqChart, qqqSeries, "chart-line-qqq"); renderLineChart(vixChart, vixSeries, "chart-line-vix"); qqqRangeLabel.textContent = formatRangeLabel(qqqSeries); vixRangeLabel.textContent = formatRangeLabel(vixSeries); setMarketStatus(`Loaded ${selectedPeriod === "2y" ? "2-year" : "1-year"} history for QQQ and VIX.`); } catch (error) { if (requestId !== marketRequestId) return; renderLineChart(qqqChart, [], "chart-line-qqq"); renderLineChart(vixChart, [], "chart-line-vix"); qqqRangeLabel.textContent = "-"; vixRangeLabel.textContent = "-"; setMarketStatus(error.message || "Unable to load market history.", true); } }
+async function loadMarketHistory(){
+  const requestId = ++marketRequestId;
+  const startDate = periodStartDate(selectedPeriod);
+  const qqqCacheKey = `QQQ-${selectedPeriod}`;
+  const vixCacheKey = `VIX-${selectedPeriod}`;
+  setPeriodButtons();
+  setMarketStatus(`Loading ${selectedPeriod === "2y" ? "2-year" : "1-year"} history...`);
+  const cachedQqqSeries = getCachedSeries(qqqCacheKey);
+  const cachedVixSeries = getCachedSeries(vixCacheKey);
+  const qqqPromise = cachedQqqSeries ? Promise.resolve(cachedQqqSeries) : fetchTwelveSeries("QQQ", startDate);
+  const vixPromise = cachedVixSeries ? Promise.resolve(cachedVixSeries) : fetchCboeVixSeries(startDate);
+  const [qqqResult, vixResult] = await Promise.allSettled([qqqPromise, vixPromise]);
+  if (requestId !== marketRequestId) return;
+
+  const messages = [];
+
+  if (qqqResult.status === "fulfilled" && qqqResult.value.length) {
+    if (!cachedQqqSeries) setCachedSeries(qqqCacheKey, qqqResult.value);
+    renderLineChart(qqqChart, qqqResult.value, "chart-line-qqq");
+    qqqRangeLabel.textContent = formatRangeLabel(qqqResult.value);
+  } else {
+    renderLineChart(qqqChart, [], "chart-line-qqq");
+    qqqRangeLabel.textContent = "-";
+    messages.push("QQQ history is unavailable right now.");
+  }
+
+  if (vixResult.status === "fulfilled" && vixResult.value.length) {
+    if (!cachedVixSeries) setCachedSeries(vixCacheKey, vixResult.value);
+    renderLineChart(vixChart, vixResult.value, "chart-line-vix");
+    vixRangeLabel.textContent = formatRangeLabel(vixResult.value);
+  } else {
+    renderLineChart(vixChart, [], "chart-line-vix");
+    vixRangeLabel.textContent = "-";
+    messages.push("VIX history is unavailable right now.");
+  }
+
+  if (messages.length === 0) {
+    setMarketStatus(`Loaded ${selectedPeriod === "2y" ? "2-year" : "1-year"} history for QQQ and VIX.`);
+  } else if (messages.length === 2) {
+    setMarketStatus("QQQ and VIX history are unavailable right now. Try refreshing in a minute.", true);
+  } else {
+    setMarketStatus(messages[0], true);
+  }
+}
 form.addEventListener("submit", (event)=>{ event.preventDefault(); calculate(); saveInputs(); });
 Object.entries(fields).forEach(([key, field])=>{ if (key === "stockTicker") return; field.addEventListener("input", ()=>{ calculate(); saveInputs(); }); });
 fields.stockTicker.addEventListener("keydown", (event)=>{ if (event.key === "Enter") { event.preventDefault(); addTicker(); } });
