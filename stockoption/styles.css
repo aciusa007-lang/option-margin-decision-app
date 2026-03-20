@@ -77,3 +77,4 @@ button { margin-top: 4px; border: 0; border-radius: 999px; padding: 10px 14px; b
   .strategy-grid { grid-template-columns: 1fr; }
   .market-panel-head { flex-direction: column; }
 }
+.chart-label { font: 600 11px/1 "Trebuchet MS", "Segoe UI", sans-serif; fill: #7b7468; }
