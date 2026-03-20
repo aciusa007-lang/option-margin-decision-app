@@ -13,16 +13,51 @@ const vixChart = document.getElementById("vixChart");
 const qqqRangeLabel = document.getElementById("qqqRangeLabel");
 const vixRangeLabel = document.getElementById("vixRangeLabel");
 const fields = {
-  stockTicker: document.getElementById("stockTicker"), stockPrice: document.getElementById("stockPrice"), sharesOwned: document.getElementById("sharesOwned"), expectedPrice: document.getElementById("expectedPrice"), daysToExpiration: document.getElementById("daysToExpiration"), callStrike: document.getElementById("callStrike"), callPremium: document.getElementById("callPremium"), putStrike: document.getElementById("putStrike"), putContracts: document.getElementById("putContracts"), putPremium: document.getElementById("putPremium"), marginAmount: document.getElementById("marginAmount"), marginRate: document.getElementById("marginRate"), marginShares: document.getElementById("marginShares")
+  stockTicker: document.getElementById("stockTicker"),
+  stockPrice: document.getElementById("stockPrice"),
+  sharesOwned: document.getElementById("sharesOwned"),
+  expectedPrice: document.getElementById("expectedPrice"),
+  daysToExpiration: document.getElementById("daysToExpiration"),
+  callStrike: document.getElementById("callStrike"),
+  callPremium: document.getElementById("callPremium"),
+  putStrike: document.getElementById("putStrike"),
+  putContracts: document.getElementById("putContracts"),
+  putPremium: document.getElementById("putPremium"),
+  marginAmount: document.getElementById("marginAmount"),
+  marginRate: document.getElementById("marginRate"),
+  marginShares: document.getElementById("marginShares")
 };
 const outputIds = {
-  coveredCallPremiumIncome: document.getElementById("coveredCallPremiumIncome"), coveredCallProfit: document.getElementById("coveredCallProfit"), coveredCallYield: document.getElementById("coveredCallYield"), coveredCallBreakeven: document.getElementById("coveredCallBreakeven"), coveredCallCap: document.getElementById("coveredCallCap"), cashPutPremiumIncome: document.getElementById("cashPutPremiumIncome"), cashPutProfit: document.getElementById("cashPutProfit"), cashPutYield: document.getElementById("cashPutYield"), cashPutBreakeven: document.getElementById("cashPutBreakeven"), cashPutAssignment: document.getElementById("cashPutAssignment"), cashPutCashNeeded: document.getElementById("cashPutCashNeeded"), cashPutNetCashNeeded: document.getElementById("cashPutNetCashNeeded"), marginStockChange: document.getElementById("marginStockChange"), marginProfit: document.getElementById("marginProfit"), marginInterest: document.getElementById("marginInterest"), marginBreakevenMove: document.getElementById("marginBreakevenMove"), marginExposure: document.getElementById("marginExposure"), bestChoiceTitle: document.getElementById("bestChoiceTitle"), bestChoiceReason: document.getElementById("bestChoiceReason")
+  coveredCallPremiumIncome: document.getElementById("coveredCallPremiumIncome"),
+  coveredCallProfit: document.getElementById("coveredCallProfit"),
+  coveredCallYield: document.getElementById("coveredCallYield"),
+  coveredCallBreakeven: document.getElementById("coveredCallBreakeven"),
+  coveredCallCap: document.getElementById("coveredCallCap"),
+  cashPutPremiumIncome: document.getElementById("cashPutPremiumIncome"),
+  cashPutProfit: document.getElementById("cashPutProfit"),
+  cashPutYield: document.getElementById("cashPutYield"),
+  cashPutBreakeven: document.getElementById("cashPutBreakeven"),
+  cashPutAssignment: document.getElementById("cashPutAssignment"),
+  cashPutCashNeeded: document.getElementById("cashPutCashNeeded"),
+  cashPutNetCashNeeded: document.getElementById("cashPutNetCashNeeded"),
+  marginStockChange: document.getElementById("marginStockChange"),
+  marginProfit: document.getElementById("marginProfit"),
+  marginInterest: document.getElementById("marginInterest"),
+  marginBreakevenMove: document.getElementById("marginBreakevenMove"),
+  marginExposure: document.getElementById("marginExposure"),
+  bestChoiceTitle: document.getElementById("bestChoiceTitle"),
+  bestChoiceReason: document.getElementById("bestChoiceReason")
 };
-const cards = { coveredCall: document.getElementById("coveredCallCard"), cashPut: document.getElementById("cashPutCard"), margin: document.getElementById("marginCard") };
+const cards = {
+  coveredCall: document.getElementById("coveredCallCard"),
+  cashPut: document.getElementById("cashPutCard"),
+  margin: document.getElementById("marginCard")
+};
 const TRADING_DAYS_PER_YEAR = 252;
 const STORAGE_KEY = "option-margin-decision-inputs-v2";
 const LAST_TICKER_KEY = "option-margin-decision-last-ticker-v2";
 const GLOBAL_SETTINGS_KEY = "option-margin-decision-global-v1";
+const MARKET_CACHE_KEY = "option-margin-market-cache-v1";
 const FALLBACK_TICKER = "AAPL";
 const GLOBAL_FIELD_KEYS = ["marginAmount", "marginRate", "marginShares"];
 const FINNHUB_API_KEY = "d1kvekhr01qt8foqinm0d1kvekhr01qt8foqinmg";
@@ -32,7 +67,10 @@ const SUPABASE_ANON_KEY = "sb_publishable_8KAo4fIYcX9rq1rXdWZZ5Q_Owwncvjx";
 const SUPABASE_TABLE = "portfolio_state";
 const SUPABASE_SYNC_ID = "leeclub-private-site";
 const supabaseClient = window.supabase?.createClient ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
-let syncTimer = null; let cloudLoaded = false; let selectedPeriod = "1y"; let marketRequestId = 0;
+let syncTimer = null;
+let cloudLoaded = false;
+let selectedPeriod = "1y";
+let marketRequestId = 0;
 const defaultValues = Object.fromEntries(Object.entries(fields).map(([key, field]) => [key, field.value]));
 const readNumber = (input) => Number.parseFloat(input.value) || 0;
 const clampContracts = (shares) => Math.floor(shares / 100);
@@ -44,6 +82,8 @@ function getStorageState(){ try { return JSON.parse(window.localStorage.getItem(
 function setStorageState(state){ window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 function getGlobalSettings(){ try { return JSON.parse(window.localStorage.getItem(GLOBAL_SETTINGS_KEY) || "{}"); } catch { return {}; } }
 function setGlobalSettings(settings){ window.localStorage.setItem(GLOBAL_SETTINGS_KEY, JSON.stringify(settings)); }
+function getMarketCache(){ try { return JSON.parse(window.localStorage.getItem(MARKET_CACHE_KEY) || "{}"); } catch { return {}; } }
+function setMarketCache(cache){ window.localStorage.setItem(MARKET_CACHE_KEY, JSON.stringify(cache)); }
 function currentTicker(){ return normalizeTicker(fields.stockTicker.value); }
 function listTickers(){ return Object.keys(getStorageState()).sort((a,b)=>a.localeCompare(b)); }
 function updateActiveTickerLabel(){ activeTickerLabel.textContent = currentTicker() || "No stock selected"; }
@@ -67,10 +107,14 @@ function setPeriodButtons(){ period1yButton.classList.toggle("is-active", select
 function formatRangeLabel(series){ if (!series.length) return "-"; const first = series[0].close; const last = series[series.length - 1].close; const change = last - first; const pct = first !== 0 ? (change / first) * 100 : 0; const sign = change >= 0 ? "+" : ""; return `${formatCurrencyPrecise(last)} | ${sign}${change.toFixed(2)} (${sign}${pct.toFixed(2)}%)`; }
 function renderLineChart(svg, series, lineClass){ const width = 720, height = 220, left = 22, right = 10, top = 12, bottom = 18, innerWidth = width - left - right, innerHeight = height - top - bottom; svg.innerHTML = ""; if (!series.length) { svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" class="chart-empty">No data available</text>'; return; } const values = series.map((point)=>point.close); const min = Math.min(...values); const max = Math.max(...values); const span = max - min || 1; const guides = [0,0.5,1].map((ratio)=>{ const y = top + innerHeight * ratio; return `<line class="chart-guide" x1="${left}" y1="${y}" x2="${width - right}" y2="${y}" />`; }).join(""); const path = series.map((point, index)=>{ const x = left + (innerWidth * index) / Math.max(series.length - 1, 1); const y = top + ((max - point.close) / span) * innerHeight; return `${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`; }).join(" "); svg.innerHTML = `${guides}<line class="chart-axis" x1="${left}" y1="${height - bottom}" x2="${width - right}" y2="${height - bottom}" /><path class="${lineClass}" d="${path}" />`; }
 function parseTimeSeriesResponse(data){ if (!data || !Array.isArray(data.values)) return []; return data.values.map((entry)=>({ date: entry.datetime, close: Number.parseFloat(entry.close) })).filter((entry)=>Number.isFinite(entry.close)).sort((a,b)=>new Date(a.date) - new Date(b.date)); }
+function parseFinnhubSeries(data){ if (!data || data.s !== "ok" || !Array.isArray(data.c) || !Array.isArray(data.t)) return []; return data.c.map((close, index)=>({ date: new Date(data.t[index] * 1000).toISOString().slice(0, 10), close: Number.parseFloat(close) })).filter((entry)=>Number.isFinite(entry.close)); }
+function getCachedSeries(cacheKey){ const cache = getMarketCache(); const entry = cache[cacheKey]; if (!entry || !Array.isArray(entry.series) || !entry.savedAt) return null; if (Date.now() - entry.savedAt > 12 * 60 * 60 * 1000) return null; return entry.series; }
+function setCachedSeries(cacheKey, series){ const cache = getMarketCache(); cache[cacheKey] = { savedAt: Date.now(), series }; setMarketCache(cache); }
 async function fetchTwelveSeries(symbol, startDate){ const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(symbol)}&interval=1day&start_date=${encodeURIComponent(startDate)}&order=asc&outputsize=5000&apikey=${TWELVE_DATA_API_KEY}`; const response = await fetch(url); if (!response.ok) throw new Error(`HTTP ${response.status}`); const data = await response.json(); if (data.status === "error") throw new Error(data.message || `Unable to load ${symbol}`); return parseTimeSeriesResponse(data); }
-async function fetchVixSeries(startDate){ const candidates = ["VIX", "^VIX", "CBOE:VIX"]; for (const symbol of candidates) { try { const series = await fetchTwelveSeries(symbol, startDate); if (series.length) return series; } catch {} } throw new Error("Unable to load VIX history."); }
+async function fetchFinnhubSeries(symbol, startDate){ const fromUnix = Math.floor(new Date(`${startDate}T00:00:00Z`).getTime() / 1000); const toUnix = Math.floor(Date.now() / 1000); const url = `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(symbol)}&resolution=D&from=${fromUnix}&to=${toUnix}&token=${FINNHUB_API_KEY}`; const response = await fetch(url); if (!response.ok) throw new Error(`HTTP ${response.status}`); const data = await response.json(); const series = parseFinnhubSeries(data); if (!series.length) throw new Error(`Unable to load ${symbol} history.`); return series; }
+async function fetchVixSeries(startDate){ return fetchTwelveSeries("VIX", startDate); }
 function periodStartDate(periodKey){ const now = new Date(); const start = new Date(now); start.setFullYear(now.getFullYear() - (periodKey === "2y" ? 2 : 1)); return start.toISOString().slice(0, 10); }
-async function loadMarketHistory(){ const requestId = ++marketRequestId; const startDate = periodStartDate(selectedPeriod); setPeriodButtons(); setMarketStatus(`Loading ${selectedPeriod === "2y" ? "2-year" : "1-year"} history...`); try { const [qqqSeries, vixSeries] = await Promise.all([fetchTwelveSeries("QQQ", startDate), fetchVixSeries(startDate)]); if (requestId !== marketRequestId) return; renderLineChart(qqqChart, qqqSeries, "chart-line-qqq"); renderLineChart(vixChart, vixSeries, "chart-line-vix"); qqqRangeLabel.textContent = formatRangeLabel(qqqSeries); vixRangeLabel.textContent = formatRangeLabel(vixSeries); setMarketStatus(`Loaded ${selectedPeriod === "2y" ? "2-year" : "1-year"} history for QQQ and VIX.`); } catch (error) { if (requestId !== marketRequestId) return; renderLineChart(qqqChart, [], "chart-line-qqq"); renderLineChart(vixChart, [], "chart-line-vix"); qqqRangeLabel.textContent = "-"; vixRangeLabel.textContent = "-"; setMarketStatus(error.message || "Unable to load market history.", true); } }
+async function loadMarketHistory(){ const requestId = ++marketRequestId; const startDate = periodStartDate(selectedPeriod); const qqqCacheKey = `QQQ-${selectedPeriod}`; const vixCacheKey = `VIX-${selectedPeriod}`; setPeriodButtons(); setMarketStatus(`Loading ${selectedPeriod === "2y" ? "2-year" : "1-year"} history...`); try { const cachedQqqSeries = getCachedSeries(qqqCacheKey); const cachedVixSeries = getCachedSeries(vixCacheKey); const [qqqSeries, vixSeries] = await Promise.all([cachedQqqSeries ? Promise.resolve(cachedQqqSeries) : fetchFinnhubSeries("QQQ", startDate), cachedVixSeries ? Promise.resolve(cachedVixSeries) : fetchVixSeries(startDate)]); if (!cachedQqqSeries) setCachedSeries(qqqCacheKey, qqqSeries); if (!cachedVixSeries) setCachedSeries(vixCacheKey, vixSeries); if (requestId !== marketRequestId) return; renderLineChart(qqqChart, qqqSeries, "chart-line-qqq"); renderLineChart(vixChart, vixSeries, "chart-line-vix"); qqqRangeLabel.textContent = formatRangeLabel(qqqSeries); vixRangeLabel.textContent = formatRangeLabel(vixSeries); setMarketStatus(`Loaded ${selectedPeriod === "2y" ? "2-year" : "1-year"} history for QQQ and VIX.`); } catch (error) { if (requestId !== marketRequestId) return; renderLineChart(qqqChart, [], "chart-line-qqq"); renderLineChart(vixChart, [], "chart-line-vix"); qqqRangeLabel.textContent = "-"; vixRangeLabel.textContent = "-"; setMarketStatus(error.message || "Unable to load market history.", true); } }
 form.addEventListener("submit", (event)=>{ event.preventDefault(); calculate(); saveInputs(); });
 Object.entries(fields).forEach(([key, field])=>{ if (key === "stockTicker") return; field.addEventListener("input", ()=>{ calculate(); saveInputs(); }); });
 fields.stockTicker.addEventListener("keydown", (event)=>{ if (event.key === "Enter") { event.preventDefault(); addTicker(); } });
