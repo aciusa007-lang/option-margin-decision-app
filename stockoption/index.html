@@ -12,7 +12,7 @@
       <h1>Covered Call, Cash-Secured Put, or Margin Carry</h1>
     </section>
 
-    <section class="panel grid">
+    <section class="panel grid grid-with-side-chart">
       <aside class="stock-panel">
         <div class="watchlist-card">
           <div class="watchlist-head">
@@ -102,31 +102,47 @@
             </ul>
             <p class="disclaimer">This is an educational calculator, not investment advice. It does not model taxes, early assignment, changing volatility, dividends, or broker-specific margin rules.</p>
           </div>
-
-          <section class="market-panel">
-            <div class="market-panel-head">
-              <div>
-                <h3>QQQ And VIX History</h3>
-                <p class="muted">Historical closes for QQQ and the VIX over the selected period.</p>
-              </div>
-              <div class="period-switcher">
-                <button id="period1yButton" type="button" class="period-button is-active">1Y</button>
-                <button id="period2yButton" type="button" class="period-button">2Y</button>
-              </div>
-            </div>
-            <p id="marketStatus" class="status-text muted">Loading QQQ and VIX history...</p>
-            <div class="chart-grid">
-              <article class="chart-card">
-                <div class="chart-card-head"><h4>QQQ</h4><strong id="qqqRangeLabel">-</strong></div>
-                <svg id="qqqChart" class="line-chart" viewBox="0 0 720 220" preserveAspectRatio="none"></svg>
-              </article>
-              <article class="chart-card">
-                <div class="chart-card-head"><h4>VIX</h4><strong id="vixRangeLabel">-</strong></div>
-                <svg id="vixChart" class="line-chart" viewBox="0 0 720 220" preserveAspectRatio="none"></svg>
-              </article>
-            </div>
-          </section>
         </section>
+      </section>
+
+      <section class="market-panel market-panel-side-column">
+        <div class="market-panel-head">
+          <div>
+            <h3>QQQ And VIX History</h3>
+            <p class="muted">Move across the chart to compare the same date for QQQ and VIX.</p>
+          </div>
+          <div class="period-switcher">
+            <button id="period1yButton" type="button" class="period-button is-active">1Y</button>
+            <button id="period2yButton" type="button" class="period-button">2Y</button>
+          </div>
+        </div>
+        <p id="marketStatus" class="status-text muted">Loading QQQ and VIX history...</p>
+        <article class="chart-card chart-card-stacked">
+          <div class="chart-card-head chart-card-head-combined">
+            <div class="market-readout market-readout-date">
+              <span>Date</span>
+              <strong id="marketDateLabel">-</strong>
+            </div>
+            <div class="market-readout market-readout-qqq">
+              <span>QQQ</span>
+              <strong id="qqqRangeLabel">-</strong>
+            </div>
+            <div class="market-readout market-readout-vix">
+              <span>VIX</span>
+              <strong id="vixRangeLabel">-</strong>
+            </div>
+          </div>
+          <div class="chart-stack">
+            <div class="chart-stack-item">
+              <div class="chart-stack-label chart-stack-label-qqq">QQQ</div>
+              <svg id="qqqChart" class="line-chart line-chart-stacked" viewBox="0 0 720 170" preserveAspectRatio="none"></svg>
+            </div>
+            <div class="chart-stack-item">
+              <div class="chart-stack-label chart-stack-label-vix">VIX</div>
+              <svg id="vixChart" class="line-chart line-chart-stacked" viewBox="0 0 720 170" preserveAspectRatio="none"></svg>
+            </div>
+          </div>
+        </article>
       </section>
     </section>
   </main>
