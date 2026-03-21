@@ -10,6 +10,7 @@ const period1yButton = document.getElementById("period1yButton");
 const period2yButton = document.getElementById("period2yButton");
 const qqqChart = document.getElementById("qqqChart");
 const vixChart = document.getElementById("vixChart");
+const marketDateLabel = document.getElementById("marketDateLabel");
 const qqqRangeLabel = document.getElementById("qqqRangeLabel");
 const vixRangeLabel = document.getElementById("vixRangeLabel");
 const fields = {
@@ -71,6 +72,8 @@ let syncTimer = null;
 let cloudLoaded = false;
 let selectedPeriod = "1y";
 let marketRequestId = 0;
+let marketSeriesState = { qqq: [], vix: [] };
+let focusRatio = null;
 const defaultValues = Object.fromEntries(Object.entries(fields).map(([key, field]) => [key, field.value]));
 const readNumber = (input) => Number.parseFloat(input.value) || 0;
 const clampContracts = (shares) => Math.floor(shares / 100);
@@ -78,6 +81,7 @@ const formatCurrency = (value) => new Intl.NumberFormat("en-US", { style: "curre
 const formatCurrencyPrecise = (value) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(value);
 const formatPercent = (value) => `${value.toFixed(2)}%`;
 const normalizeTicker = (value) => (value || "").trim().toUpperCase();
+
 function getStorageState(){ try { return JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "{}"); } catch { return {}; } }
 function setStorageState(state){ window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 function getGlobalSettings(){ try { return JSON.parse(window.localStorage.getItem(GLOBAL_SETTINGS_KEY) || "{}"); } catch { return {}; } }
@@ -102,12 +106,205 @@ function restoreInputs(ticker){ const normalizedTicker = normalizeTicker(ticker)
 function addTicker(){ const ticker = normalizeTicker(fields.stockTicker.value); if (!ticker) { fields.stockTicker.value = currentTicker() || ""; return; } ensureTickerProfile(ticker); restoreInputs(ticker); calculate(); saveInputs(); }
 function removeTicker(tickerToRemove){ const normalizedTicker = normalizeTicker(tickerToRemove); const state = getStorageState(); const activeTicker = currentTicker(); delete state[normalizedTicker]; setStorageState(state); const remainingTickers = Object.keys(state).sort((a,b)=>a.localeCompare(b)); const nextTicker = activeTicker === normalizedTicker ? (remainingTickers[0] || "") : activeTicker; restoreInputs(nextTicker); if (nextTicker) { calculate(); saveInputs(); } }
 function initializeTickerProfile(){ const tickers = listTickers(); const lastTicker = normalizeTicker(window.localStorage.getItem(LAST_TICKER_KEY)); if (tickers.length === 0) { ensureTickerProfile(FALLBACK_TICKER); window.localStorage.setItem(LAST_TICKER_KEY, FALLBACK_TICKER); restoreInputs(FALLBACK_TICKER); return; } restoreInputs(lastTicker && tickers.includes(lastTicker) ? lastTicker : tickers[0]); }
-function calculate(){ const stockPrice = readNumber(fields.stockPrice); const sharesOwned = readNumber(fields.sharesOwned); const expectedPrice = readNumber(fields.expectedPrice); const days = Math.max(readNumber(fields.daysToExpiration), 1); const callStrike = readNumber(fields.callStrike); const callPremium = readNumber(fields.callPremium); const putStrike = readNumber(fields.putStrike); const putContracts = readNumber(fields.putContracts); const putPremium = readNumber(fields.putPremium); const marginAmount = readNumber(fields.marginAmount); const marginRate = readNumber(fields.marginRate) / 100; const marginShares = readNumber(fields.marginShares); const contracts = clampContracts(sharesOwned); const optionShares = contracts * 100; const calledAwayPrice = Math.min(expectedPrice, callStrike); const coveredCallPremiumIncome = callPremium * optionShares; const coveredCallProfit = ((calledAwayPrice - stockPrice) * optionShares) + coveredCallPremiumIncome; const coveredCallYield = stockPrice > 0 && days > 0 ? ((callPremium / stockPrice) * (TRADING_DAYS_PER_YEAR / days) * 100) : 0; const coveredCallBreakeven = stockPrice - callPremium; const coveredCallCap = (callStrike - stockPrice + callPremium) * optionShares; const putShares = putContracts * 100; const putPremiumIncome = putPremium * putShares; const putCashNeeded = putStrike * putShares; const putNetCashNeeded = putCashNeeded - putPremiumIncome; const putProfit = expectedPrice >= putStrike ? putPremiumIncome : ((expectedPrice - putStrike) * putShares) + putPremiumIncome; const putYield = putStrike > 0 && days > 0 ? ((putPremium / putStrike) * (TRADING_DAYS_PER_YEAR / days) * 100) : 0; const putBreakeven = putStrike - putPremium; const interestCost = marginAmount * marginRate * (days / 365); const marginStockChange = (expectedPrice - stockPrice) * marginShares; const marginProfit = marginStockChange - interestCost; const marginBreakevenMove = marginShares > 0 ? interestCost / marginShares : 0; const strategies = [{ key: "coveredCall", name: "Covered call", profit: coveredCallProfit, reason: expectedPrice > callStrike ? "Projected profit includes premium, but upside is capped above the call strike." : "Projected profit includes stock movement plus call premium." }, { key: "cashPut", name: "Cash-secured put", profit: putProfit, reason: expectedPrice < putStrike ? "Projected result assumes assignment below the put strike." : "Projected result is premium income with no assignment." }, { key: "margin", name: "Margin carry", profit: marginProfit, reason: "Projected result separates unrealized stock change from financing cost on the borrowed money." }]; const best = strategies.reduce((top, current)=>current.profit > top.profit ? current : top); outputIds.coveredCallPremiumIncome.textContent = formatCurrency(coveredCallPremiumIncome); outputIds.coveredCallProfit.textContent = formatCurrency(coveredCallProfit); outputIds.coveredCallYield.textContent = formatPercent(coveredCallYield); outputIds.coveredCallBreakeven.textContent = formatCurrencyPrecise(coveredCallBreakeven); outputIds.coveredCallCap.textContent = formatCurrency(coveredCallCap); outputIds.cashPutPremiumIncome.textContent = formatCurrency(putPremiumIncome); outputIds.cashPutProfit.textContent = formatCurrency(putProfit); outputIds.cashPutYield.textContent = formatPercent(putYield); outputIds.cashPutBreakeven.textContent = formatCurrencyPrecise(putBreakeven); outputIds.cashPutAssignment.textContent = formatCurrencyPrecise(putStrike); outputIds.cashPutCashNeeded.textContent = formatCurrency(putCashNeeded); outputIds.cashPutNetCashNeeded.textContent = formatCurrency(putNetCashNeeded); outputIds.marginStockChange.textContent = formatCurrency(marginStockChange); outputIds.marginProfit.textContent = formatCurrency(marginProfit); outputIds.marginInterest.textContent = formatCurrencyPrecise(interestCost); outputIds.marginBreakevenMove.textContent = formatCurrencyPrecise(marginBreakevenMove); outputIds.marginExposure.textContent = formatCurrency(stockPrice * marginShares); outputIds.bestChoiceTitle.textContent = best.name; outputIds.bestChoiceReason.textContent = `${best.reason} Highest projected profit under the current expiration price assumption: ${formatCurrency(best.profit)}.`; Object.values(cards).forEach((card)=>card.classList.remove("is-best", "is-risk")); cards[best.key].classList.add("is-best"); if (marginProfit < 0) cards.margin.classList.add("is-risk"); if (expectedPrice < putBreakeven) cards.cashPut.classList.add("is-risk"); if (expectedPrice > callStrike) cards.coveredCall.classList.add("is-risk"); }
-function setPeriodButtons(){ period1yButton.classList.toggle("is-active", selectedPeriod === "1y"); period2yButton.classList.toggle("is-active", selectedPeriod === "2y"); }
-function formatRangeLabel(series){ if (!series.length) return "-"; const first = series[0].close; const last = series[series.length - 1].close; const change = last - first; const pct = first !== 0 ? (change / first) * 100 : 0; const sign = change >= 0 ? "+" : ""; return `${formatCurrencyPrecise(last)} | ${sign}${change.toFixed(2)} (${sign}${pct.toFixed(2)}%)`; }
-function formatAxisDateLabel(value){ const date = new Date(`${value}T00:00:00`); return date.toLocaleDateString("en-US", { month: "short", year: "2-digit" }); }
-function renderLineChart(svg, series, lineClass){ const width = 720, height = 220, left = 56, right = 12, top = 12, bottom = 34, innerWidth = width - left - right, innerHeight = height - top - bottom; svg.innerHTML = ""; if (!series.length) { svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" class="chart-empty">No data available</text>'; return; } const values = series.map((point)=>point.close); const min = Math.min(...values); const max = Math.max(...values); const span = max - min || 1; const yTicks = [max, max - span / 2, min]; const guides = yTicks.map((value)=>{ const y = top + ((max - value) / span) * innerHeight; return `<line class="chart-guide" x1="${left}" y1="${y}" x2="${width - right}" y2="${y}" />`; }).join(""); const yLabels = yTicks.map((value)=>{ const y = top + ((max - value) / span) * innerHeight + 4; return `<text class="chart-label" x="${left - 8}" y="${y}" text-anchor="end">${value.toFixed(1)}</text>`; }).join(""); const xTickIndexes = [0, Math.floor((series.length - 1) / 2), Math.max(series.length - 1, 0)]; const uniqueIndexes = [...new Set(xTickIndexes)]; const xTicks = uniqueIndexes.map((index)=>{ const point = series[index]; const x = left + (innerWidth * index) / Math.max(series.length - 1, 1); return `<line class="chart-axis" x1="${x}" y1="${height - bottom}" x2="${x}" y2="${height - bottom + 5}" /><text class="chart-label" x="${x}" y="${height - 10}" text-anchor="middle">${formatAxisDateLabel(point.date)}</text>`; }).join(""); const path = series.map((point, index)=>{ const x = left + (innerWidth * index) / Math.max(series.length - 1, 1); const y = top + ((max - point.close) / span) * innerHeight; return `${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`; }).join(" "); svg.innerHTML = `${guides}${yLabels}<line class="chart-axis" x1="${left}" y1="${height - bottom}" x2="${width - right}" y2="${height - bottom}" />${xTicks}<path class="${lineClass}" d="${path}" />`; }
-function parseTimeSeriesResponse(data){ if (!data || !Array.isArray(data.values)) return []; return data.values.map((entry)=>({ date: entry.datetime, close: Number.parseFloat(entry.close) })).filter((entry)=>Number.isFinite(entry.close)).sort((a,b)=>new Date(a.date) - new Date(b.date)); }
+
+function calculate(){
+  const stockPrice = readNumber(fields.stockPrice);
+  const sharesOwned = readNumber(fields.sharesOwned);
+  const expectedPrice = readNumber(fields.expectedPrice);
+  const days = Math.max(readNumber(fields.daysToExpiration), 1);
+  const callStrike = readNumber(fields.callStrike);
+  const callPremium = readNumber(fields.callPremium);
+  const putStrike = readNumber(fields.putStrike);
+  const putContracts = readNumber(fields.putContracts);
+  const putPremium = readNumber(fields.putPremium);
+  const marginAmount = readNumber(fields.marginAmount);
+  const marginRate = readNumber(fields.marginRate) / 100;
+  const marginShares = readNumber(fields.marginShares);
+  const contracts = clampContracts(sharesOwned);
+  const optionShares = contracts * 100;
+  const calledAwayPrice = Math.min(expectedPrice, callStrike);
+  const coveredCallPremiumIncome = callPremium * optionShares;
+  const coveredCallProfit = ((calledAwayPrice - stockPrice) * optionShares) + coveredCallPremiumIncome;
+  const coveredCallYield = stockPrice > 0 && days > 0 ? ((callPremium / stockPrice) * (TRADING_DAYS_PER_YEAR / days) * 100) : 0;
+  const coveredCallBreakeven = stockPrice - callPremium;
+  const coveredCallCap = (callStrike - stockPrice + callPremium) * optionShares;
+  const putShares = putContracts * 100;
+  const putPremiumIncome = putPremium * putShares;
+  const putCashNeeded = putStrike * putShares;
+  const putNetCashNeeded = putCashNeeded - putPremiumIncome;
+  const putProfit = expectedPrice >= putStrike ? putPremiumIncome : ((expectedPrice - putStrike) * putShares) + putPremiumIncome;
+  const putYield = putStrike > 0 && days > 0 ? ((putPremium / putStrike) * (TRADING_DAYS_PER_YEAR / days) * 100) : 0;
+  const putBreakeven = putStrike - putPremium;
+  const interestCost = marginAmount * marginRate * (days / 365);
+  const marginStockChange = (expectedPrice - stockPrice) * marginShares;
+  const marginProfit = marginStockChange - interestCost;
+  const marginBreakevenMove = marginShares > 0 ? interestCost / marginShares : 0;
+  const strategies = [
+    { key: "coveredCall", name: "Covered call", profit: coveredCallProfit, reason: expectedPrice > callStrike ? "Projected profit includes premium, but upside is capped above the call strike." : "Projected profit includes stock movement plus call premium." },
+    { key: "cashPut", name: "Cash-secured put", profit: putProfit, reason: expectedPrice < putStrike ? "Projected result assumes assignment below the put strike." : "Projected result is premium income with no assignment." },
+    { key: "margin", name: "Margin carry", profit: marginProfit, reason: "Projected result separates unrealized stock change from financing cost on the borrowed money." }
+  ];
+  const best = strategies.reduce((top, current)=>current.profit > top.profit ? current : top);
+
+  outputIds.coveredCallPremiumIncome.textContent = formatCurrency(coveredCallPremiumIncome);
+  outputIds.coveredCallProfit.textContent = formatCurrency(coveredCallProfit);
+  outputIds.coveredCallYield.textContent = formatPercent(coveredCallYield);
+  outputIds.coveredCallBreakeven.textContent = formatCurrencyPrecise(coveredCallBreakeven);
+  outputIds.coveredCallCap.textContent = formatCurrency(coveredCallCap);
+  outputIds.cashPutPremiumIncome.textContent = formatCurrency(putPremiumIncome);
+  outputIds.cashPutProfit.textContent = formatCurrency(putProfit);
+  outputIds.cashPutYield.textContent = formatPercent(putYield);
+  outputIds.cashPutBreakeven.textContent = formatCurrencyPrecise(putBreakeven);
+  outputIds.cashPutAssignment.textContent = formatCurrencyPrecise(putStrike);
+  outputIds.cashPutCashNeeded.textContent = formatCurrency(putCashNeeded);
+  outputIds.cashPutNetCashNeeded.textContent = formatCurrency(putNetCashNeeded);
+  outputIds.marginStockChange.textContent = formatCurrency(marginStockChange);
+  outputIds.marginProfit.textContent = formatCurrency(marginProfit);
+  outputIds.marginInterest.textContent = formatCurrencyPrecise(interestCost);
+  outputIds.marginBreakevenMove.textContent = formatCurrencyPrecise(marginBreakevenMove);
+  outputIds.marginExposure.textContent = formatCurrency(stockPrice * marginShares);
+  outputIds.bestChoiceTitle.textContent = best.name;
+  outputIds.bestChoiceReason.textContent = `${best.reason} Highest projected profit under the current expiration price assumption: ${formatCurrency(best.profit)}.`;
+
+  Object.values(cards).forEach((card)=>card.classList.remove("is-best", "is-risk"));
+  cards[best.key].classList.add("is-best");
+  if (marginProfit < 0) cards.margin.classList.add("is-risk");
+  if (expectedPrice < putBreakeven) cards.cashPut.classList.add("is-risk");
+  if (expectedPrice > callStrike) cards.coveredCall.classList.add("is-risk");
+}
+
+function setPeriodButtons(){
+  period1yButton.classList.toggle("is-active", selectedPeriod === "1y");
+  period2yButton.classList.toggle("is-active", selectedPeriod === "2y");
+}
+function formatMarketDateLabel(value){
+  if (!value) return "-";
+  const date = new Date(`${value}T00:00:00`);
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+function formatAxisDateLabel(value){
+  const date = new Date(`${value}T00:00:00`);
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" });
+}
+function marketTimeBounds(){
+  const seriesList = [marketSeriesState.qqq, marketSeriesState.vix].filter((series)=>series.length);
+  if (!seriesList.length) return null;
+  const mins = seriesList.map((series)=>Date.parse(`${series[0].date}T00:00:00Z`));
+  const maxs = seriesList.map((series)=>Date.parse(`${series[series.length - 1].date}T00:00:00Z`));
+  return { min: Math.min(...mins), max: Math.max(...maxs) };
+}
+function getSeriesPointAtTime(series, targetTime){
+  if (!series.length) return null;
+  let closest = series[0];
+  let closestDiff = Math.abs(Date.parse(`${closest.date}T00:00:00Z`) - targetTime);
+  for (const point of series) {
+    const pointTime = Date.parse(`${point.date}T00:00:00Z`);
+    const diff = Math.abs(pointTime - targetTime);
+    if (diff < closestDiff) {
+      closest = point;
+      closestDiff = diff;
+    }
+  }
+  return closest;
+}
+function currentFocusTime(){
+  const bounds = marketTimeBounds();
+  if (!bounds) return null;
+  if (focusRatio === null || focusRatio === undefined) return bounds.max;
+  return bounds.min + ((bounds.max - bounds.min) * focusRatio);
+}
+function updateMarketReadouts(){
+  const focusTime = currentFocusTime();
+  const qqqPoint = focusTime === null ? null : getSeriesPointAtTime(marketSeriesState.qqq, focusTime);
+  const vixPoint = focusTime === null ? null : getSeriesPointAtTime(marketSeriesState.vix, focusTime);
+  const dateValue = qqqPoint?.date || vixPoint?.date || null;
+  marketDateLabel.textContent = formatMarketDateLabel(dateValue);
+  qqqRangeLabel.textContent = qqqPoint ? formatCurrencyPrecise(qqqPoint.close) : "-";
+  vixRangeLabel.textContent = vixPoint ? vixPoint.close.toFixed(2) : "-";
+}
+function renderSingleChart(svg, series, options = {}){
+  const { lineClass, ratio = null, fixedMin = null, fixedMax = null } = options;
+  const width = 720;
+  const height = 170;
+  const left = 52;
+  const right = 12;
+  const top = 10;
+  const bottom = 30;
+  const innerWidth = width - left - right;
+  const innerHeight = height - top - bottom;
+  svg.innerHTML = "";
+  if (!series.length) {
+    svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" class="chart-empty">No data available</text>';
+    return;
+  }
+
+  const bounds = marketTimeBounds();
+  const values = series.map((point)=>point.close);
+  const min = fixedMin ?? Math.min(...values);
+  const max = fixedMax ?? Math.max(...values);
+  const span = max - min || 1;
+  const yTicks = fixedMin !== null && fixedMax !== null ? [fixedMax, (fixedMax + fixedMin) / 2, fixedMin] : [max, max - span / 2, min];
+  const timeSpan = (bounds?.max ?? 1) - (bounds?.min ?? 0) || 1;
+
+  const guides = yTicks.map((value)=>{
+    const y = top + ((max - value) / span) * innerHeight;
+    return `<line class="chart-guide" x1="${left}" y1="${y}" x2="${width - right}" y2="${y}" />`;
+  }).join("");
+
+  const yLabels = yTicks.map((value)=>{
+    const y = top + ((max - value) / span) * innerHeight + 4;
+    return `<text class="chart-label" x="${left - 8}" y="${y}" text-anchor="end">${value.toFixed(1)}</text>`;
+  }).join("");
+
+  const xTickTimes = bounds ? [bounds.min, bounds.min + ((bounds.max - bounds.min) / 2), bounds.max] : [];
+  const xTicks = xTickTimes.map((time)=>{
+    const x = left + (((time - bounds.min) / timeSpan) * innerWidth);
+    const dateLabel = formatAxisDateLabel(new Date(time).toISOString().slice(0, 10));
+    return `<line class="chart-axis" x1="${x}" y1="${height - bottom}" x2="${x}" y2="${height - bottom + 5}" /><text class="chart-label" x="${x}" y="${height - 10}" text-anchor="middle">${dateLabel}</text>`;
+  }).join("");
+
+  const points = series.map((point, index)=>{
+    const time = Date.parse(`${point.date}T00:00:00Z`);
+    const x = left + (((time - bounds.min) / timeSpan) * innerWidth);
+    const clampedValue = Math.max(min, Math.min(max, point.close));
+    const y = top + ((max - clampedValue) / span) * innerHeight;
+    return { x, y, time, point, index };
+  });
+  const path = points.map(({ x, y }, index)=>`${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`).join(" ");
+
+  let focusMarkup = "";
+  if (ratio !== null && ratio !== undefined && bounds) {
+    const focusTime = bounds.min + ((bounds.max - bounds.min) * ratio);
+    const x = left + (((focusTime - bounds.min) / timeSpan) * innerWidth);
+    const point = getSeriesPointAtTime(series, focusTime);
+    if (point) {
+      const pointTime = Date.parse(`${point.date}T00:00:00Z`);
+      const cx = left + (((pointTime - bounds.min) / timeSpan) * innerWidth);
+      const clampedValue = Math.max(min, Math.min(max, point.close));
+      const cy = top + ((max - clampedValue) / span) * innerHeight;
+      const pointClass = lineClass === "chart-line-vix" ? "chart-point-vix" : "chart-point-qqq";
+      focusMarkup = `<line class="chart-focus" x1="${x}" y1="${top}" x2="${x}" y2="${height - bottom}" /><circle class="${pointClass}" cx="${cx}" cy="${cy}" r="4.5" />`;
+    }
+  }
+
+  svg.innerHTML = `${guides}${yLabels}<line class="chart-axis" x1="${left}" y1="${height - bottom}" x2="${width - right}" y2="${height - bottom}" />${xTicks}<path class="${lineClass}" d="${path}" />${focusMarkup}`;
+}
+function renderMarketCharts(){
+  updateMarketReadouts();
+  renderSingleChart(qqqChart, marketSeriesState.qqq, { lineClass: "chart-line-qqq", ratio: focusRatio });
+  renderSingleChart(vixChart, marketSeriesState.vix, { lineClass: "chart-line-vix", ratio: focusRatio, fixedMin: 10, fixedMax: 50 });
+}
+function updateFocusFromEvent(event){
+  const bounds = event.currentTarget.getBoundingClientRect();
+  if (!bounds.width) return;
+  focusRatio = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
+  renderMarketCharts();
+}
+function clearChartFocus(){
+  focusRatio = null;
+  renderMarketCharts();
+}
+function parseTimeSeriesResponse(data){ return !data || !Array.isArray(data.values) ? [] : data.values.map((entry)=>({ date: entry.datetime, close: Number.parseFloat(entry.close) })).filter((entry)=>Number.isFinite(entry.close)).sort((a,b)=>new Date(a.date) - new Date(b.date)); }
 function parseCboeCsv(csv, startDate){ const minTime = new Date(`${startDate}T00:00:00Z`).getTime(); return csv.split(/\r?\n/).slice(1).map((line)=>line.trim()).filter(Boolean).map((line)=>{ const parts = line.split(","); const date = parts[0]; const close = Number.parseFloat(parts[parts.length - 1]); const [month, day, year] = date.split("/"); return { date: `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`, close }; }).filter((entry)=>Number.isFinite(entry.close) && new Date(`${entry.date}T00:00:00Z`).getTime() >= minTime).sort((a,b)=>new Date(a.date) - new Date(b.date)); }
 function getCachedSeries(cacheKey){ const cache = getMarketCache(); const entry = cache[cacheKey]; if (!entry || !Array.isArray(entry.series) || !entry.savedAt) return null; if (Date.now() - entry.savedAt > 12 * 60 * 60 * 1000) return null; return entry.series; }
 function setCachedSeries(cacheKey, series){ const cache = getMarketCache(); cache[cacheKey] = { savedAt: Date.now(), series }; setMarketCache(cache); }
@@ -129,26 +326,26 @@ async function loadMarketHistory(){
   if (requestId !== marketRequestId) return;
 
   const messages = [];
+  marketSeriesState = { qqq: [], vix: [] };
+  focusRatio = null;
 
   if (qqqResult.status === "fulfilled" && qqqResult.value.length) {
     if (!cachedQqqSeries) setCachedSeries(qqqCacheKey, qqqResult.value);
-    renderLineChart(qqqChart, qqqResult.value, "chart-line-qqq");
-    qqqRangeLabel.textContent = formatRangeLabel(qqqResult.value);
+    marketSeriesState.qqq = qqqResult.value;
   } else {
-    renderLineChart(qqqChart, [], "chart-line-qqq");
     qqqRangeLabel.textContent = "-";
     messages.push("QQQ history is unavailable right now.");
   }
 
   if (vixResult.status === "fulfilled" && vixResult.value.length) {
     if (!cachedVixSeries) setCachedSeries(vixCacheKey, vixResult.value);
-    renderLineChart(vixChart, vixResult.value, "chart-line-vix");
-    vixRangeLabel.textContent = formatRangeLabel(vixResult.value);
+    marketSeriesState.vix = vixResult.value;
   } else {
-    renderLineChart(vixChart, [], "chart-line-vix");
     vixRangeLabel.textContent = "-";
     messages.push("VIX history is unavailable right now.");
   }
+
+  renderMarketCharts();
 
   if (messages.length === 0) {
     setMarketStatus(`Loaded ${selectedPeriod === "2y" ? "2-year" : "1-year"} history for QQQ and VIX.`);
@@ -158,6 +355,7 @@ async function loadMarketHistory(){
     setMarketStatus(messages[0], true);
   }
 }
+
 form.addEventListener("submit", (event)=>{ event.preventDefault(); calculate(); saveInputs(); });
 Object.entries(fields).forEach(([key, field])=>{ if (key === "stockTicker") return; field.addEventListener("input", ()=>{ calculate(); saveInputs(); }); });
 fields.stockTicker.addEventListener("keydown", (event)=>{ if (event.key === "Enter") { event.preventDefault(); addTicker(); } });
@@ -165,12 +363,12 @@ addTickerButton.addEventListener("click", addTicker);
 fetchPriceButton.addEventListener("click", async ()=>{ const ticker = currentTicker() || normalizeTicker(fields.stockTicker.value); if (!ticker) { setPriceStatus("Enter a ticker first.", true); return; } setPriceStatus(`Fetching price for ${ticker}...`); fetchPriceButton.disabled = true; try { const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(ticker)}&token=${FINNHUB_API_KEY}`; const response = await fetch(url); if (!response.ok) throw new Error(`HTTP ${response.status}`); const data = await response.json(); const price = Number.parseFloat(data.c); if (!Number.isFinite(price) || price <= 0) throw new Error("No quote returned for this ticker."); fields.stockPrice.value = price.toFixed(2); calculate(); saveInputs(); setPriceStatus(`Current price loaded for ${ticker}: ${price.toFixed(2)}`); } catch (error) { setPriceStatus(error.message || "Unable to fetch stock price.", true); } finally { fetchPriceButton.disabled = false; } });
 period1yButton.addEventListener("click", ()=>{ if (selectedPeriod !== "1y") { selectedPeriod = "1y"; loadMarketHistory(); } });
 period2yButton.addEventListener("click", ()=>{ if (selectedPeriod !== "2y") { selectedPeriod = "2y"; loadMarketHistory(); } });
+[qqqChart, vixChart].forEach((chart)=>{
+  chart.addEventListener("pointermove", updateFocusFromEvent);
+  chart.addEventListener("pointerleave", clearChartFocus);
+});
+
 initializeTickerProfile();
 calculate();
 loadCloudState();
 loadMarketHistory();
-
-
-
-
-
