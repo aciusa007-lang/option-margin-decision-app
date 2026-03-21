@@ -268,7 +268,7 @@ function renderSingleChart(svg, series, options = {}){
     const x = left + (((time - bounds.min) / timeSpan) * innerWidth);
     const clampedValue = Math.max(min, Math.min(max, point.close));
     const y = top + ((max - clampedValue) / span) * innerHeight;
-    return { x, y, time, point, index };
+    return { x, y };
   });
   const path = points.map(({ x, y }, index)=>`${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`).join(" ");
 
@@ -287,7 +287,8 @@ function renderSingleChart(svg, series, options = {}){
     }
   }
 
-  svg.innerHTML = `${guides}${yLabels}<line class="chart-axis" x1="${left}" y1="${height - bottom}" x2="${width - right}" y2="${height - bottom}" />${xTicks}<path class="${lineClass}" d="${path}" />${focusMarkup}`;
+  const hitbox = `<rect class="chart-hitbox" x="${left}" y="${top}" width="${innerWidth}" height="${innerHeight}" />`;
+  svg.innerHTML = `${guides}${yLabels}<line class="chart-axis" x1="${left}" y1="${height - bottom}" x2="${width - right}" y2="${height - bottom}" />${xTicks}<path class="${lineClass}" d="${path}" />${focusMarkup}${hitbox}`;
 }
 function renderMarketCharts(){
   updateMarketReadouts();
